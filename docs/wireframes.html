@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrossLink — UI Wireframes v1.0</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f0f0; color: #333; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 30px; color: #1a1a2e; }
+  .screen-grid { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+  .screen-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; width: 360px; }
+  .screen-card.wide { width: 560px; }
+  .screen-title { background: #1a1a2e; color: #fff; padding: 10px 16px; font-size: 14px; font-weight: 600; }
+  .screen-body { padding: 20px; }
+  /* Mobile phone frame */
+  .phone-frame { width: 300px; height: 560px; border: 3px solid #333; border-radius: 24px; margin: 0 auto; position: relative; overflow: hidden; background: #fafafa; }
+  .phone-statusbar { height: 28px; background: #1a1a2e; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; color: #fff; font-size: 11px; }
+  .phone-content { padding: 16px; height: calc(100% - 28px); overflow-y: auto; }
+  /* Desktop frame */
+  .desktop-frame { width: 100%; height: 320px; border: 2px solid #ddd; border-radius: 8px; background: #f5f5f5; position: relative; overflow: hidden; }
+  .desktop-taskbar { position: absolute; bottom: 0; left: 0; right: 0; height: 32px; background: #e0e0e0; display: flex; align-items: center; padding: 0 12px; gap: 8px; }
+  .desktop-tray { margin-left: auto; display: flex; gap: 6px; }
+  /* Wireframe elements */
+  .wf-btn { display: block; width: 100%; padding: 12px; border-radius: 8px; border: 2px dashed #888; background: #fff; text-align: center; font-size: 14px; cursor: pointer; margin: 8px 0; }
+  .wf-btn.primary { background: #1a1a2e; color: #fff; border-style: solid; }
+  .wf-input { display: block; width: 100%; padding: 10px; border: 2px dashed #888; border-radius: 8px; margin: 8px 0; font-size: 14px; background: #fff; }
+  .wf-label { font-size: 12px; color: #666; margin: 12px 0 4px; }
+  .wf-list-item { padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin: 6px 0; display: flex; align-items: center; gap: 10px; }
+  .wf-avatar { width: 40px; height: 40px; border-radius: 50%; background: #ddd; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .wf-bubble { padding: 10px 14px; border-radius: 12px; margin: 4px 0; max-width: 80%; font-size: 13px; }
+  .wf-bubble.in { background: #e8e8e8; align-self: flex-start; }
+  .wf-bubble.out { background: #1a1a2e; color: #fff; margin-left: auto; }
+  .wf-chip { display: inline-block; padding: 4px 10px; border-radius: 12px; background: #e0e0e0; font-size: 11px; margin: 2px; }
+  .wf-chip.green { background: #d4edda; color: #155724; }
+  .wf-chip.yellow { background: #fff3cd; color: #856404; }
+  .wf-chip.red { background: #f8d7da; color: #721c24; }
+  .wf-qr { width: 160px; height: 160px; border: 10px solid #333; margin: 16px auto; background: repeating-linear-gradient(45deg, #000 0px, #000 8px, #fff 8px, #fff 16px); border-radius: 4px; }
+  .wf-tray-icon { width: 16px; height: 16px; border-radius: 50%; background: #4caf50; }
+  .wf-tray-menu { position: absolute; bottom: 40px; right: 8px; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 4px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 180px; }
+  .wf-tray-menu-item { padding: 8px 16px; font-size: 13px; cursor: pointer; }
+  .wf-tray-menu-item:hover { background: #f0f0f0; }
+  .wf-tray-menu-sep { border-top: 1px solid #eee; margin: 4px 0; }
+  .arrow { text-align: center; color: #888; font-size: 20px; margin: 24px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🧵 CrossLink — UI Wireframes v1.0</h1>
+
+<div class="screen-grid">
+
+  <!-- Screen 1: Agent Install Wizard -->
+  <div class="screen-card">
+    <div class="screen-title">1. Agent 安装向导（桌面端）</div>
+    <div class="screen-body">
+      <div class="desktop-frame">
+        <div style="padding: 40px; text-align: center;">
+          <div style="font-size: 24px; margin-bottom: 16px;">🖥️</div>
+          <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">CrossLink Agent 安装</div>
+          <div style="font-size: 13px; color: #666; margin-bottom: 24px;">让您的手机远程使用这台电脑的 AI 模型</div>
+          <div style="display: flex; gap: 10px; justify-content: center; font-size: 13px; color: #666; margin-bottom: 20px;">
+            <div style="text-align: center;">① 安装路径<br><span style="color: #1a1a2e;">已选择</span></div>
+            <div>→</div>
+            <div style="text-align: center;">② 准备就绪<br><span style="color: #888;">下一步</span></div>
+            <div>→</div>
+            <div style="text-align: center;">③ 完成<br><span style="color: #888;">安装</span></div>
+          </div>
+          <div class="wf-input" style="width: 80%; margin: 0 auto;">C:\Program Files\CrossLink</div>
+          <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+            <div class="wf-btn" style="width: 100px;">上一步</div>
+            <div class="wf-btn primary" style="width: 100px;">下一步</div>
+          </div>
+        </div>
+        <div class="desktop-taskbar">
+          <div style="font-size: 12px;">🪟</div>
+          <div class="desktop-tray">
+            <span style="font-size: 11px;">🔊 🌐 12:34</span>
+          </div>
+        </div>
+      </div>
+      <p style="font-size: 11px; color: #888; margin-top: 12px;">📌 安装向导 2-3 步，全程无命令行</p>
+    </div>
+  </div>
+
+  <!-- Screen 2: Agent Tray + QR Code -->
+  <div class="screen-card">
+    <div class="screen-title">2. Agent 托盘 + 配对二维码</div>
+    <div class="screen-body">
+      <div class="desktop-frame">
+        <div style="padding: 30px; text-align: center;">
+          <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">🔗 扫码配对</div>
+          <div style="font-size: 13px; color: #666; margin-bottom: 16px;">打开 CrossLink App 扫描此二维码</div>
+          <div class="wf-qr"></div>
+          <div style="font-size: 12px; color: #888;">二维码每 60 秒自动刷新</div>
+        </div>
+        <div class="desktop-taskbar">
+          <div style="font-size: 12px;">🪟</div>
+          <div class="desktop-tray">
+            <span style="font-size: 11px;">🔊 🌐 </span>
+            <div class="wf-tray-icon"></div>
+            <span style="font-size: 11px;">12:34</span>
+          </div>
+        </div>
+        <!-- Tray menu popup -->
+        <div class="wf-tray-menu">
+          <div class="wf-tray-menu-item">🖥️ 我的台式机 <span class="wf-chip green" style="margin-left: 8px;">已连接</span></div>
+          <div class="wf-tray-menu-sep"></div>
+          <div class="wf-tray-menu-item">📋 显示配对码</div>
+          <div class="wf-tray-menu-item">⚙️ 设置</div>
+          <div class="wf-tray-menu-sep"></div>
+          <div class="wf-tray-menu-item">❌ 退出</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 3: App - Scan -->
+  <div class="screen-card">
+    <div class="screen-title">3. App 扫码绑定（首次打开）</div>
+    <div class="screen-body">
+      <div class="phone-frame">
+        <div class="phone-statusbar"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="phone-content">
+          <div style="text-align: center; padding-top: 40px;">
+            <div style="font-size: 28px;">📱</div>
+            <div style="font-size: 18px; font-weight: 600; margin: 16px 0 8px;">欢迎使用 CrossLink</div>
+            <div style="font-size: 13px; color: #666;">扫描电脑上的二维码完成配对</div>
+          </div>
+          <div style="border: 2px dashed #888; border-radius: 12px; height: 200px; margin: 24px 0; display: flex; align-items: center; justify-content: center; color: #888;">
+            📷 摄像头预览区域
+          </div>
+          <div class="wf-btn" style="border-style: dashed; font-size: 13px; color: #666;">
+            手动输入配对码
+          </div>
+          <div class="wf-list-item" style="margin-top: 16px; background: #f9f9f9;">
+            <div class="wf-avatar">🖥️</div>
+            <div>
+              <div style="font-size: 14px; font-weight: 500;">我的台式机</div>
+              <div style="font-size: 12px; color: #888;">上次连接：今天 12:34</div>
+            </div>
+            <span class="wf-chip yellow" style="margin-left: auto;">离线</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 4: App - Device List -->
+  <div class="screen-card">
+    <div class="screen-title">4. App 设备列表</div>
+    <div class="screen-body">
+      <div class="phone-frame">
+        <div class="phone-statusbar"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="phone-content">
+          <div style="font-size: 22px; font-weight: 700; margin-bottom: 16px;">我的设备</div>
+          <div class="wf-list-item" style="border-color: #4caf50;">
+            <div class="wf-avatar" style="background: #d4edda;">🖥️</div>
+            <div>
+              <div style="font-size: 14px; font-weight: 500;">我的台式机</div>
+              <div style="font-size: 12px; color: #666;">3 个模型可用</div>
+            </div>
+            <span class="wf-chip green">🟢 直连</span>
+            <span style="color: #888;">›</span>
+          </div>
+          <div class="wf-list-item">
+            <div class="wf-avatar">💻</div>
+            <div>
+              <div style="font-size: 14px; font-weight: 500;">工作笔记本</div>
+              <div style="font-size: 12px; color: #666;">1 个模型可用</div>
+            </div>
+            <span class="wf-chip yellow">🟡 中继</span>
+            <span style="color: #888;">›</span>
+          </div>
+          <div style="margin-top: 24px;">
+            <div class="wf-btn" style="border-style: dashed; font-size: 13px; color: #666;">
+              ＋ 添加设备
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 5: App - Chat -->
+  <div class="screen-card">
+    <div class="screen-title">5. App 对话界面</div>
+    <div class="screen-body">
+      <div class="phone-frame">
+        <div class="phone-statusbar"><span>9:41</span><span>🟢 直连</span></div>
+        <div class="phone-content">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eee;">
+            <span style="font-size: 18px;">‹</span>
+            <div style="flex: 1; font-size: 14px; font-weight: 500;">qwen2.5:7b</div>
+            <span style="font-size: 12px; color: #888;">💬</span>
+          </div>
+          <!-- Messages -->
+          <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;">
+            <div class="wf-bubble in">你好！我是运行在家里的 AI 助手，有什么可以帮你的？</div>
+            <div class="wf-bubble out">用 Python 写一个快速排序</div>
+            <div class="wf-bubble in" style="font-family: monospace; font-size: 11px;">def quicksort(arr):<br>    if len(arr) &lt;= 1:<br>        return arr<br>    pivot = arr[0]<br>    left = [x for x in arr[1:] if x &lt;= pivot]<br>    right = [x for x in arr[1:] if x &gt; pivot]<br>    return quicksort(left) + [pivot] + quicksort(right)</div>
+            <div style="font-size: 11px; color: #888; text-align: center; margin: 8px 0;">AI 正在输入...</div>
+          </div>
+          <!-- Input -->
+          <div style="display: flex; gap: 8px; align-items: center; border-top: 1px solid #eee; padding-top: 8px;">
+            <div class="wf-input" style="flex: 1; margin: 0; font-size: 13px;">输入消息...</div>
+            <div class="wf-btn primary" style="width: 50px; padding: 10px;">↑</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 6: Settings / License -->
+  <div class="screen-card">
+    <div class="screen-title">6. App 设置 & License</div>
+    <div class="screen-body">
+      <div class="phone-frame">
+        <div class="phone-statusbar"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="phone-content">
+          <div style="font-size: 22px; font-weight: 700; margin-bottom: 16px;">设置</div>
+          <div class="wf-list-item">
+            <span>🔑</span>
+            <div>
+              <div style="font-size: 14px;">License 状态</div>
+              <div style="font-size: 12px;"><span class="wf-chip green">已激活</span> 个人版 · 1 台设备</div>
+            </div>
+          </div>
+          <div class="wf-list-item">
+            <span>🖥️</span>
+            <div>
+              <div style="font-size: 14px;">已绑定设备</div>
+              <div style="font-size: 12px; color: #666;">我的台式机 · 上次在线 1 分钟前</div>
+            </div>
+          </div>
+          <div class="wf-list-item">
+            <span>🌐</span>
+            <div>
+              <div style="font-size: 14px;">连接模式</div>
+              <div style="font-size: 12px; color: #666;">公共信令服务（默认）</div>
+            </div>
+          </div>
+          <div class="wf-list-item" style="margin-top: 16px;">
+            <span>🔒</span>
+            <div>
+              <div style="font-size: 14px;">隐私 & 安全</div>
+              <div style="font-size: 12px; color: #666;">数据传输加密 · E2E</div>
+            </div>
+          </div>
+          <div style="margin-top: 24px;">
+            <div style="font-size: 12px; color: #888; text-align: center;">CrossLink v0.1.0 · Build 42</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div> <!-- /screen-grid -->
+
+<div style="text-align: center; margin-top: 30px; color: #888; font-size: 13px;">
+  共 6 个关键页面 · 低保真线框图 · 确保逻辑通顺后进入开发
+</div>
+
+</div>
+</body>
+</html>

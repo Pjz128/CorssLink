@@ -1,0 +1,66 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+poc/deploy/signal-server
+poc/signal/signal-server
+
+# Test binary
+*.test
+
+# Go
+*.out
+go.sum
+
+# Flutter / Dart
+app/.dart_tool/
+app/.packages
+app/.pub/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/pubspec.lock
+app/*.iml
+app/.idea/
+
+# Wails / Desktop
+poc/crosslink-agent/frontend/node_modules/
+poc/crosslink-agent/frontend/dist/
+poc/crosslink-agent/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment / secrets
+.env
+.env.local
+*.local
+DEEPSEEK_API_KEY
+
+# License dev keys
+ed25519_private.key
+!ed25519_public.key
+
+# POC build artifacts
+poc/*/pairing-qr.png
+poc/qrgen/pairing-qr.png
+
+# Logs
+*.log
+/tmp/
+
+# Agent data (contains encrypted keys — don't commit)
+*_key.json
+devices.json
