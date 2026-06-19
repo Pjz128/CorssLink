@@ -56,12 +56,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _optionCard(
                     context: context,
                     icon: Icons.cloud_outlined,
-                    title: '信令服务器',
+                    title: '中继服务器',
                     subtitle: _settings!.serverUrl,
                     onTap: () => _showEditDialog(
-                      title: '信令服务器地址',
+                      title: '中继服务器地址',
                       initial: _settings!.serverUrl,
-                      hint: 'ws://45.197.144.16:18080',
+                      hint: 'http://45.197.144.16:18080',
                       onSaved: (v) =>
                           setState(() => _settings!.serverUrl = v),
                     ),

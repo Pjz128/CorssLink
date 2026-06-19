@@ -132,18 +132,20 @@ func handleWS(hub *Hub) http.HandlerFunc {
 		}
 		defer conn.Close()
 
-		// Keepalive: ping every 30s, read deadline 60s
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		// Keepalive: reset read deadline on every message (app + control).
+		// Application pings arrive every ~10s, WebSocket pings every 25s.
+		conn.SetReadDeadline(time.Now().Add(120 * time.Second))
 		conn.SetPongHandler(func(string) error {
-			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			conn.SetReadDeadline(time.Now().Add(120 * time.Second))
 			return nil
 		})
 		go func() {
-			ticker := time.NewTicker(30 * time.Second)
+			ticker := time.NewTicker(25 * time.Second)
 			defer ticker.Stop()
 			for range ticker.C {
 				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					log.Printf("[hub] ping write error for %s: %v — stopping pings", peerID, err)
 					return
 				}
 			}
@@ -169,11 +171,17 @@ func handleWS(hub *Hub) http.HandlerFunc {
 				log.Printf("[hub] %s disconnected: %v", peerID, err)
 				return
 			}
+			// Reset deadline on every successful read — app keepalive
+			// pings arrive every ~10s, so 120s gives plenty of margin.
+			conn.SetReadDeadline(time.Now().Add(120 * time.Second))
 			msg.From = peerID
 
 			if msg.To == "" || msg.To == "hub" {
 				if msg.Type == "list" {
 					conn.WriteJSON(SignalMsg{Type: "peers", From: "hub", To: peerID})
+				}
+				if msg.Type == "ping" {
+					conn.WriteJSON(SignalMsg{Type: "pong", From: "hub", To: peerID})
 				}
 				continue
 			}

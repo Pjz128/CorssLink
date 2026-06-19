@@ -62,6 +62,7 @@ class WebRTCService {
 
   bool _disposed = false;
   Timer? _connectTimeout;
+  Timer? _keepaliveTimer;
   RTCState _state = RTCState.disconnected;
   RTCState get currentState => _state;
 
@@ -78,10 +79,9 @@ class WebRTCService {
     _emitStep(ConnectionStep.signalConnecting);
     debugPrint('[RTC$_id] connect() started → ${_fmt(DateTime.now())}');
 
-    // Connection timeout: fires 10s after START if not connected/failed by then.
-    // NOT cancelled when setup completes — covers ICE negotiation too.
+    // Connection timeout: 30s covers TURN relay + ICE negotiation.
     _connectTimeout?.cancel();
-    _connectTimeout = Timer(const Duration(seconds: 5), () {
+    _connectTimeout = Timer(const Duration(seconds: 30), () {
       if (_state == RTCState.connecting) {
         final elapsed = DateTime.now().difference(t0).inMilliseconds;
         debugPrint('[RTC$_id] ❌ timeout after ${elapsed}ms');
@@ -111,6 +111,12 @@ class WebRTCService {
           if (_state != RTCState.connected) _setState(RTCState.failed);
         },
       );
+
+      // Keepalive: send ping every 25s so server's 60s read deadline never fires.
+      _keepaliveTimer?.cancel();
+      _keepaliveTimer = Timer.periodic(const Duration(seconds: 25), (_) {
+        _sendSignal({'type': 'ping', 'to': 'hub'});
+      });
 
       // 2. Create RTCPeerConnection — TURN only (no STUN, blocked in CN)
       _emitStep(ConnectionStep.peerCreating);
@@ -310,6 +316,8 @@ class WebRTCService {
     _disposed = true;
     _connectTimeout?.cancel();
     _connectTimeout = null;
+    _keepaliveTimer?.cancel();
+    _keepaliveTimer = null;
     _signalSub?.cancel();
     _signalSub = null;
     _dcStateSub?.cancel();

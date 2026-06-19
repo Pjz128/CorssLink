@@ -12,6 +12,13 @@ class MsgType {
   static const statusResp = 'status-res';
   static const ping = 'ping';
   static const pong = 'pong';
+  // Agentic extensions (Claude Code, etc.)
+  static const thinking = 'thinking';
+  static const toolUse = 'tool-use';
+  static const toolInput = 'tool-input';
+  static const toolResult = 'tool-result';
+  static const setModel = 'set-model';
+  static const listAgents = 'list-agents';
 }
 
 /// Top-level envelope for all DataChannel messages.
@@ -56,14 +63,36 @@ class WireMessage {
   static int _counter = 0;
 }
 
+/// Describes an available agent backend and its models.
+class AgentInfo {
+  final String type;
+  final String label;
+  final List<ModelInfo> models;
+
+  AgentInfo({required this.type, required this.label, required this.models});
+
+  factory AgentInfo.fromJson(Map<String, dynamic> json) {
+    return AgentInfo(
+      type: json['type'] as String? ?? '',
+      label: json['label'] as String? ?? '',
+      models: (json['models'] as List?)
+              ?.map((m) => ModelInfo.fromJson(m as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+}
+
 /// Payload for a chat request.
 class ChatRequestBody {
+  final String? agent; // backend selection (null = default)
   final String model;
   final List<ChatMessage> messages;
 
-  ChatRequestBody({required this.model, required this.messages});
+  ChatRequestBody({this.agent, required this.model, required this.messages});
 
   Map<String, dynamic> toJson() => {
+        if (agent != null) 'agent': agent,
         'model': model,
         'messages': messages.map((m) => m.toJson()).toList(),
       };
@@ -99,6 +128,49 @@ class ModelInfo {
       name: json['name'] as String? ?? '',
       paramSize: json['paramSize'] as String? ?? '',
       quant: json['quant'] as String? ?? '',
+    );
+  }
+}
+
+// ---- Agentic message body models ----
+
+/// A tool call event from the agent.
+class ToolCallEvent {
+  final String id;
+  final String name;
+  final Map<String, dynamic>? input;
+
+  ToolCallEvent({required this.id, required this.name, this.input});
+
+  factory ToolCallEvent.fromJson(Map<String, dynamic> json) {
+    return ToolCallEvent(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      input: json['input'] as Map<String, dynamic>?,
+    );
+  }
+}
+
+/// A tool result event from the agent.
+class ToolResultEvent {
+  final String id;
+  final String name;
+  final String output;
+  final bool isError;
+
+  ToolResultEvent({
+    required this.id,
+    required this.name,
+    required this.output,
+    this.isError = false,
+  });
+
+  factory ToolResultEvent.fromJson(Map<String, dynamic> json) {
+    return ToolResultEvent(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      output: json['output'] as String? ?? '',
+      isError: json['isError'] as bool? ?? false,
     );
   }
 }

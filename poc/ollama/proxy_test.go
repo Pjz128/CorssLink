@@ -98,9 +98,10 @@ func TestHandlerCreation(t *testing.T) {
 		return nil
 	}
 
-	h := NewHandler("", sendFn)
-	if h.Ollama == nil {
-		t.Error("ollama client is nil")
+	c := NewClient("")
+	h := NewHandler(c, sendFn)
+	if h.Backend == nil {
+		t.Error("backend is nil")
 	}
 	if h.SendFn == nil {
 		t.Error("send fn is nil")

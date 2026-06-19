@@ -8,7 +8,7 @@ class SettingsService {
   static const _keyAgentId = 'crosslink.agent_id';
   static const _keyThemeColor = 'crosslink.theme_color';
 
-  static const defaultServerUrl = 'ws://45.197.144.16:18080';
+  static const defaultServerUrl = 'http://45.197.144.16:18080';
   static const defaultModel = 'deepseek-chat';
   static const defaultAgentId = 'agent-ollama-pc';
   static const defaultThemeColor = 0xFF1a1a2e;

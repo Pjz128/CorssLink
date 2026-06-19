@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../models/pairing.dart';
 import '../services/crypto_service.dart';
+import '../services/http_service.dart';
 import '../services/pairing_service.dart';
 
 class ScanScreen extends StatefulWidget {
@@ -128,6 +129,33 @@ class _PairingDialogState extends State<_PairingDialog> {
     final qr = widget.qr;
     const deviceName = 'Flutter Device';
 
+    if (qr.isHttpV2) {
+      // ---- HTTP v2 pairing (simplified, no WebSocket) ----
+      setState(() => _status = '正在连接 Agent...');
+      try {
+        final baseUrl = qr.serverUrl.split('/pair?').first; // extract base
+        final device = await HttpPairing.pair(
+          serverUrl: baseUrl,
+          pairToken: qr.pairToken,
+          deviceName: deviceName,
+        );
+        if (!mounted) return;
+        setState(() {
+          _result = device;
+          _status = '已连接到 ${qr.peerId}';
+          _done = true;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _status = '配对失败：$e';
+          _failed = true;
+        });
+      }
+      return;
+    }
+
+    // ---- WebSocket v1 pairing (fallback) ----
     final token = await _pairing.pair(
       qr,
       deviceName,

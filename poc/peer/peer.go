@@ -206,6 +206,13 @@ func (p *Peer) connectSignal(maxAttempts int) error {
 		conn, _, err := tcpKeepAliveDialer.Dial(wsURL, nil)
 		if err == nil {
 			p.signalConn = conn
+			// Reset read deadline when server sends WebSocket pings (every 30s).
+			// Must also send Pong, otherwise server will close the connection.
+			p.signalConn.SetPingHandler(func(appData string) error {
+				p.signalConn.SetReadDeadline(time.Now().Add(90 * time.Second))
+				p.signalConn.WriteMessage(websocket.PongMessage, []byte(appData))
+				return nil
+			})
 			log.Printf("[%s] connected to signaling server", p.cfg.PeerID)
 			return nil
 		}
@@ -246,8 +253,9 @@ func (p *Peer) reconnectSignal() bool {
 
 func (p *Peer) readSignalLoop() {
 	for {
-		// Short deadline: if no message arrives in 15s, routing is dead → reconnect.
-		p.signalConn.SetReadDeadline(time.Now().Add(8 * time.Second))
+		// Deadline must be longer than server's 30s WebSocket ping interval.
+		// If no message arrives within 90s, the connection is dead → reconnect.
+		p.signalConn.SetReadDeadline(time.Now().Add(90 * time.Second))
 		_, raw, err := p.signalConn.ReadMessage()
 		if err != nil {
 			log.Printf("[%s] signal read error: %v", p.cfg.PeerID, err)

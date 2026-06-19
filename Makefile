@@ -30,19 +30,35 @@ poc-test:
 poc-direct:
 	$(GOENV) $(GO) run ./poc/direct/
 
-# ---- Signal Server ----
+# ---- Relay Server ----
+relay-build:
+	cd poc && $(GOENV) $(GO) build -o ../bin/crosslink-relay ./relay/
+
+relay-run:
+	cd poc && $(GOENV) $(GO) run ./relay/
+
+# ---- Signal Server (deprecated, kept for reference) ----
 signal-build:
-	$(GOENV) $(GO) build -o bin/crosslink-signal ./signal/
+	cd poc && $(GOENV) $(GO) build -o ../bin/crosslink-signal.exe ./signal/
 
 signal-run:
-	$(GOENV) $(GO) run ./signal/
+	cd poc && $(GOENV) $(GO) run ./signal/
 
 # ---- Agent ----
 agent-build:
-	$(GOENV) $(GO) build -o bin/crosslink-agent ./agent/
+	cd poc && $(GOENV) $(GO) build -o ../bin/crosslink-agent.exe ./ollama-agent/
 
 agent-run:
-	$(GOENV) $(GO) run ./agent/
+	cd poc && $(GOENV) $(GO) run ./ollama-agent/
+
+agent-install: agent-build
+	bin/crosslink-agent.exe install
+
+agent-uninstall:
+	bin/crosslink-agent.exe uninstall
+
+agent-status:
+	@sc.exe query CrossLinkAgent 2>/dev/null || echo "Service not installed"
 
 # ---- Licenser ----
 licenser-build:
@@ -71,6 +87,9 @@ app-build-ios:
 # ---- Docker ----
 docker-signal:
 	docker build -t crosslink-signal -f signal/Dockerfile .
+
+docker-relay:
+	docker build -t crosslink-relay -f relay/Dockerfile .
 
 # ---- Clean ----
 clean:

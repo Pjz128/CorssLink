@@ -18,6 +18,13 @@ const (
 	MsgTypeStatusResp   = "status-res" // Agent → Client: status reply
 	MsgTypePing         = "ping"
 	MsgTypePong         = "pong"
+	// Agentic extensions (Claude Code, etc.)
+	MsgTypeThinking   = "thinking"    // Agent → Client: thinking token
+	MsgTypeToolUse    = "tool-use"    // Agent → Client: tool call started
+	MsgTypeToolInput  = "tool-input"  // Agent → Client: tool input streaming
+	MsgTypeToolResult = "tool-result" // Agent → Client: tool result
+	MsgTypeSetModel   = "set-model"   // Client → Agent: switch model/agent
+	MsgTypeListAgents = "list-agents" // Client → Agent: list agent types
 )
 
 // WireMessage is the top-level envelope for all CrossLink DataChannel messages.
@@ -28,8 +35,16 @@ type WireMessage struct {
 	Body json.RawMessage `json:"body"` // Type-specific payload
 }
 
+// AgentInfo describes an available agent backend and its models.
+type AgentInfo struct {
+	Type   string      `json:"type"`   // Backend key: "ollama", "claude", "deepseek"
+	Label  string      `json:"label"`  // Human-readable name
+	Models []ModelInfo `json:"models"` // Available models for this agent
+}
+
 // ChatRequestBody is the payload for MsgTypeChatRequest.
 type ChatRequestBody struct {
+	Agent    string    `json:"agent,omitempty"` // Backend selection (omit for default)
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 	Options  *ModelOptions `json:"options,omitempty"`
@@ -44,8 +59,11 @@ type ChatTokenBody struct {
 
 // ChatDoneBody is the payload for MsgTypeChatDone.
 type ChatDoneBody struct {
-	TotalTokens   int   `json:"totalTokens"`
-	TotalDuration int64 `json:"totalDuration"`
+	TotalTokens   int    `json:"totalTokens"`
+	TotalDuration int64  `json:"totalDuration"`
+	InputTokens   int    `json:"inputTokens,omitempty"`
+	OutputTokens  int    `json:"outputTokens,omitempty"`
+	StopReason    string `json:"stopReason,omitempty"`
 }
 
 // ChatErrorBody is the payload for MsgTypeChatError.
@@ -56,7 +74,13 @@ type ChatErrorBody struct {
 
 // ListResponseBody is the payload for MsgTypeListResponse.
 type ListResponseBody struct {
-	Models []ModelInfo `json:"models"`
+	Agents []AgentInfo `json:"agents,omitempty"` // Agentic: per-agent model grouping
+	Models []ModelInfo `json:"models"`           // Flat model list (backward compat)
+}
+
+// ListAgentsResponseBody is the payload for MsgTypeListAgents.
+type ListAgentsResponseBody struct {
+	Agents []AgentInfo `json:"agents"`
 }
 
 // StatusResponseBody is the payload for MsgTypeStatusResp.
@@ -64,6 +88,40 @@ type StatusResponseBody struct {
 	PeerID      string `json:"peerId"`
 	OllamaAlive bool   `json:"ollamaAlive"`
 	Version     string `json:"version"`
+}
+
+// --- Agentic message bodies ---
+
+// ThinkingBody is the payload for MsgTypeThinking.
+type ThinkingBody struct {
+	Token string `json:"token"`
+}
+
+// ToolUseBody is the payload for MsgTypeToolUse.
+type ToolUseBody struct {
+	Id    string          `json:"id"`
+	Name  string          `json:"name"`
+	Input json.RawMessage `json:"input"`
+}
+
+// ToolInputBody is the payload for MsgTypeToolInput.
+type ToolInputBody struct {
+	Id    string `json:"id"`
+	Token string `json:"token"`
+}
+
+// ToolResultBody is the payload for MsgTypeToolResult.
+type ToolResultBody struct {
+	Id      string `json:"id"`
+	Name    string `json:"name"`
+	Output  string `json:"output"`
+	IsError bool   `json:"isError"`
+}
+
+// SetModelBody is the payload for MsgTypeSetModel.
+type SetModelBody struct {
+	Agent string `json:"agent,omitempty"`
+	Model string `json:"model"`
 }
 
 // EncodeMessage serializes a WireMessage to JSON bytes.

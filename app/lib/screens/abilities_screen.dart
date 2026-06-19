@@ -160,6 +160,15 @@ class _ModelsTabState extends State<_ModelsTab> {
                 ?.map((m) => ModelInfo.fromJson(m as Map<String, dynamic>))
                 .toList() ??
             [];
+        // Also merge agent-grouped models if present
+        final agents = (wm.body['agents'] as List?)
+                ?.map((a) => AgentInfo.fromJson(a as Map<String, dynamic>))
+                .toList();
+        if (agents != null && agents.isNotEmpty) {
+          for (final ag in agents) {
+            _agentModels[device.deviceId + ':' + ag.type] = ag.models;
+          }
+        }
         _agentModels[device.deviceId] = models;
         if (!completer.isCompleted) completer.complete();
       }

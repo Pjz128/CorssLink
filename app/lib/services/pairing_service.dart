@@ -132,26 +132,31 @@ class PairingService {
           break;
       }
     } catch (e) {
-      // Ignore malformed messages
+      print('[pairing] onMessage error: $e');
     }
   }
 
   LongTermToken? _decryptToken(String tokenJson) {
     if (tokenJson.isEmpty) return null;
 
-    final encMap = jsonDecode(tokenJson) as Map<String, dynamic>;
-    final senderPk = encMap['spk'] as String? ?? '';
-    final nonce = encMap['n'] as String? ?? '';
-    final ct = encMap['c'] as String? ?? '';
+    try {
+      final encMap = jsonDecode(tokenJson) as Map<String, dynamic>;
+      final senderPk = encMap['spk'] as String? ?? '';
+      final nonce = encMap['n'] as String? ?? '';
+      final ct = encMap['c'] as String? ?? '';
 
-    final plaintext = _crypto.decryptToken(
-      senderPublicKey: senderPk,
-      nonce: nonce,
-      ciphertext: ct,
-    );
+      final plaintext = _crypto.decryptToken(
+        senderPublicKey: senderPk,
+        nonce: nonce,
+        ciphertext: ct,
+      );
 
-    final lt = jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
-    return LongTermToken.fromJson(lt);
+      final lt = jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
+      return LongTermToken.fromJson(lt);
+    } catch (e) {
+      print('[pairing] decrypt failed: $e');
+      return null;
+    }
   }
 
   /// Build WebSocket URL from a signal server base URL and peer ID.

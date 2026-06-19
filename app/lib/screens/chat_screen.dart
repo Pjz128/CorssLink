@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -8,16 +6,19 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../models/pairing.dart';
 import '../models/protocol.dart';
 import '../services/chat_history_service.dart';
+import '../services/http_service.dart';
 import '../services/settings_service.dart';
-import '../services/webrtc_service.dart';
 import '../widgets/status_pulse.dart';
-import '../widgets/typing_indicator.dart';
+import '../widgets/thinking_block.dart';
+import '../widgets/tool_call_card.dart';
+import '../widgets/tool_result_card.dart';
+import '../widgets/agent_picker.dart';
 
 class ChatScreen extends StatefulWidget {
   final PairedDevice device;
   final SettingsService settings;
-  final String? sessionId; // null = create new session
-  final String? preSelectedModel; // pre-select a model before connecting
+  final String? sessionId;
+  final String? preSelectedModel;
   const ChatScreen({
     super.key,
     required this.device,
@@ -31,28 +32,31 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  WebRTCService? _rtc;
+  HttpService? _http;
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   final List<_ChatBubble> _bubbles = [];
   _ChatBubble? _streamingBubble;
-  String _statusText = '连接中...';
-  String _stepLabel = '';
-  bool _connecting = true;
-  Timer? _reconnectTimer;
-  int _reconnectAttempts = 0;
-  RTCState _state = RTCState.disconnected;
-  bool _wasEverConnected = false;
-  StreamSubscription? _stepSub;
+  String _statusText = '就绪';
+  StreamSubscription? _chatSub;
 
   List<String> _availableModels = [];
   String _selectedModel = '';
   bool _modelsLoading = false;
 
+  List<AgentInfo> _availableAgents = [];
+  String _selectedAgent = '';
+  bool _agentsLoading = false;
+
+  // Thinking state (for tracking the active thinking bubble)
+  bool _thinkingActive = false;
+
+  // Tool call state
+  final Map<String, _ToolCallState> _toolCalls = {};
+
   ChatHistoryService? _history;
   late Session _session;
   List<String> _sessionIds = [];
-  StreamSubscription? _stateSub;
 
   @override
   void initState() {
@@ -84,7 +88,15 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       });
     }
-    _connect();
+
+    final device = widget.device;
+    if (device.isHttpV2) {
+      _http = HttpService(baseUrl: device.serverUrl, sessionToken: device.sessionToken);
+      setState(() => _statusText = '已连接');
+      _fetchAgents();
+    } else {
+      setState(() => _statusText = '请更新到 v2 Agent');
+    }
   }
 
   void _refreshSessionList() {
@@ -103,6 +115,8 @@ class _ChatScreenState extends State<ChatScreen> {
       _session = loaded;
       _bubbles.clear();
       _streamingBubble = null;
+      _thinkingActive = false;
+      _toolCalls.clear();
       for (final r in _session.messages) {
         _bubbles.add(_ChatBubble(
           role: r.role,
@@ -123,6 +137,8 @@ class _ChatScreenState extends State<ChatScreen> {
       _session = s;
       _bubbles.clear();
       _streamingBubble = null;
+      _thinkingActive = false;
+      _toolCalls.clear();
     });
     _refreshSessionList();
   }
@@ -145,7 +161,6 @@ class _ChatScreenState extends State<ChatScreen> {
     await _history!.delete(sessionId);
     _refreshSessionList();
     if (sessionId == _session.id) {
-      // Current session deleted — switch to latest or create new
       final remaining = _history!.listSessions(widget.device.deviceId);
       if (remaining.isNotEmpty) {
         _switchSession(remaining.first);
@@ -155,114 +170,44 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ---- WebRTC ----
-
-  Future<void> _connect() async {
-    // 已连接时禁止重连
-    if (_state == RTCState.connected) {
-      debugPrint('[RTC] _connect blocked — already connected');
-      return;
-    }
-    _reconnectTimer?.cancel();
-    try { await _disposeRTC(); } catch (_) {}
-    final rtc = WebRTCService(
-      deviceId: widget.device.deviceId,
-      agentId: widget.device.agentId,
-      serverUrl: widget.settings.serverUrl,
-    );
-    _stateSub?.cancel();
-    debugPrint('[RTC] registering state listener on rtc.state');
-    _stateSub = rtc.state.listen((state) {
-      debugPrint('[RTC] ChatScreen listener received: $state');
+  void _fetchAgents() {
+    if (_http == null || _agentsLoading) return;
+    if (mounted) setState(() => _agentsLoading = true);
+    _http!.fetchAgents().then((agents) {
       if (!mounted) return;
-      final prevState = _state;
-      debugPrint('[RTC] ChatScreen state: $prevState → $state');
       setState(() {
-        _state = state;
-        switch (state) {
-          case RTCState.connecting:
-            _statusText = '连接中...';
-            _connecting = true;
-            break;
-          case RTCState.connected:
-            _statusText = '已连接';
-            _connecting = false;
-            _reconnectAttempts = 0;
-            _fetchModels();
-            break;
-          case RTCState.failed:
-            _statusText = '连接失败';
-            _connecting = false;
-            _scheduleReconnect();
-            break;
-          case RTCState.disconnected:
-            _statusText = '已断开';
-            _connecting = false;
-            _scheduleReconnect();
-            break;
-        }
-        // Insert system bubble only on meaningful reconnection events
-        // (not during initial connection, only after we've been connected before)
-        if (_wasEverConnected && prevState != state) {
-          if (state == RTCState.connecting) {
-            _bubbles.add(_ChatBubble(role: 'system', content: '🔄 信使正在重新连接...', time: DateTime.now()));
-          } else if (state == RTCState.connected) {
-            _bubbles.add(_ChatBubble(role: 'system', content: '✅ 信使已重连', time: DateTime.now()));
-          } else if (state == RTCState.failed || state == RTCState.disconnected) {
-            _bubbles.add(_ChatBubble(role: 'system', content: '⚠️ 信使连接断开，正在重试...', time: DateTime.now()));
+        _availableAgents = agents;
+        _agentsLoading = false;
+        if (_availableAgents.isNotEmpty && _selectedAgent.isEmpty) {
+          _selectedAgent = _availableAgents.first.type;
+          final firstModels = _availableAgents.first.models;
+          _availableModels = firstModels.map((m) => m.name).toList();
+          if (_availableModels.isNotEmpty && !_availableModels.contains(_selectedModel)) {
+            _selectedModel = _availableModels.first;
           }
         }
-        if (state == RTCState.connected) {
-          _wasEverConnected = true;
-        }
       });
+    }).catchError((e) {
+      if (mounted) setState(() => _agentsLoading = false);
+      debugPrint('[HTTP] fetchAgents error: $e');
     });
-    rtc.messages.listen(_onDataMessage);
-    _stepSub?.cancel();
-    _stepSub = rtc.step.listen((s) {
-      if (mounted) setState(() => _stepLabel = s.label);
-    });
-    _rtc = rtc;
-    await rtc.connect();
   }
 
-  void _scheduleReconnect() {
-    _reconnectTimer?.cancel();
-    _reconnectAttempts++;
-    final delay = Duration(milliseconds: (_reconnectAttempts * 1500).clamp(1500, 30000));
-    _reconnectTimer = Timer(delay, () {
-      if (mounted && _state != RTCState.connected) {
-        _connect();
+  /// Finalize the current thinking bubble (mark as not streaming).
+  void _finalizeThinkingBubble() {
+    if (!_thinkingActive) return;
+    _thinkingActive = false;
+    // Mark the last thinking bubble as not streaming
+    for (int i = _bubbles.length - 1; i >= 0; i--) {
+      if (_bubbles[i].role == 'thinking') {
+        _bubbles[i].isStreaming = false;
+        break;
       }
-    });
-  }
-
-  Future<void> _disposeRTC() async {
-    debugPrint('[RTC] _disposeRTC called — stack: ${StackTrace.current}');
-    _stateSub?.cancel();
-    _stateSub = null;
-    _stepSub?.cancel();
-    _stepSub = null;
-    if (_rtc != null) {
-      await _rtc!.dispose();
-      _rtc = null;
-      debugPrint('[RTC] _disposeRTC done');
     }
   }
 
-  void _fetchModels() {
-    if (_rtc == null || _modelsLoading || _state != RTCState.connected) return;
-    if (mounted) setState(() => _modelsLoading = true);
+  void _onDataMessage(WireMessage wm) {
     try {
-      _rtc!.send(_jsonEncode(WireMessage.create(MsgType.listModels, {}).toJson()));
-    } catch (e) {
-      debugPrint('[RTC] _fetchModels send error: $e');
-    }
-  }
-
-  void _onDataMessage(String raw) {
-    try {
-      final wm = decodeWireMessage(raw);
       if (!mounted) return;
 
       switch (wm.type) {
@@ -281,9 +226,14 @@ class _ChatScreenState extends State<ChatScreen> {
           if (mounted) {
             setState(() {
               if (_streamingBubble != null) {
+                // Attach usage info from chat-done body
+                _streamingBubble!.inputTokens = wm.body['inputTokens'] as int?;
+                _streamingBubble!.outputTokens = wm.body['outputTokens'] as int?;
+                _streamingBubble!.stopReason = wm.body['stopReason'] as String?;
                 _bubbles.add(_streamingBubble!);
                 _streamingBubble = null;
               }
+              _finalizeThinkingBubble();
             });
           }
           _saveHistory();
@@ -294,6 +244,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (mounted) {
             setState(() {
               _streamingBubble = null;
+              _finalizeThinkingBubble();
               _bubbles.add(_ChatBubble(role: 'error', content: '错误：$errMsg', time: DateTime.now()));
             });
           }
@@ -305,14 +256,89 @@ class _ChatScreenState extends State<ChatScreen> {
                   ?.map((m) => (m as Map<String, dynamic>)['name'] as String? ?? '')
                   .where((n) => n.isNotEmpty)
                   .toList() ?? [];
+          final agents = (wm.body['agents'] as List?)
+                  ?.map((a) => AgentInfo.fromJson(a as Map<String, dynamic>))
+                  .toList() ?? [];
           if (mounted) {
             setState(() {
               _availableModels = models;
+              if (agents.isNotEmpty) _availableAgents = agents;
               _modelsLoading = false;
               if (_availableModels.isNotEmpty && !_availableModels.contains(_selectedModel)) {
                 _selectedModel = _availableModels.first;
               }
             });
+          }
+          break;
+
+        case MsgType.listAgents:
+          final agents = (wm.body['agents'] as List?)
+                  ?.map((a) => AgentInfo.fromJson(a as Map<String, dynamic>))
+                  .toList() ?? [];
+          if (mounted) {
+            setState(() {
+              _availableAgents = agents;
+              _agentsLoading = false;
+              if (_availableAgents.isNotEmpty && _selectedAgent.isEmpty) {
+                _selectedAgent = _availableAgents.first.type;
+                final firstModels = _availableAgents.first.models;
+                _availableModels = firstModels.map((m) => m.name).toList();
+                if (_availableModels.isNotEmpty && !_availableModels.contains(_selectedModel)) {
+                  _selectedModel = _availableModels.first;
+                }
+              }
+            });
+          }
+          break;
+
+        case MsgType.thinking:
+          final token = wm.body['token'] as String? ?? '';
+          if (mounted && token.isNotEmpty) {
+            setState(() {
+              _thinkingActive = true;
+              // Append to last thinking bubble or create new one
+              if (_bubbles.isNotEmpty && _bubbles.last.role == 'thinking') {
+                _bubbles.last.content += token;
+              } else {
+                _bubbles.add(_ChatBubble(role: 'thinking', content: token, time: DateTime.now(), isStreaming: true));
+              }
+            });
+          }
+          _scrollToBottom();
+          break;
+
+        case MsgType.toolUse:
+          final tId = wm.body['id'] as String? ?? '';
+          final tName = wm.body['name'] as String? ?? '';
+          if (tId.isNotEmpty && mounted) {
+            setState(() {
+              _toolCalls[tId] = _ToolCallState(name: tName, status: _ToolStatus.running);
+              _finalizeThinkingBubble();
+            });
+            _bubbles.add(_ChatBubble(role: 'tool_call', content: tId, time: DateTime.now(), toolId: tId));
+          }
+          _scrollToBottom();
+          break;
+
+        case MsgType.toolInput:
+          final tId = wm.body['id'] as String? ?? '';
+          if (tId.isNotEmpty && mounted) {
+            setState(() {
+              _toolCalls[tId]?.input = wm.body['input'];
+            });
+          }
+          break;
+
+        case MsgType.toolResult:
+          final tId = wm.body['id'] as String? ?? '';
+          final output = wm.body['output'] as String? ?? '';
+          final isError = wm.body['isError'] as bool? ?? false;
+          if (tId.isNotEmpty && mounted) {
+            setState(() {
+              _toolCalls[tId]?.status = isError ? _ToolStatus.error : _ToolStatus.done;
+              _toolCalls[tId]?.output = output;
+            });
+            _bubbles.add(_ChatBubble(role: 'tool_result', content: output, time: DateTime.now(), toolId: tId));
           }
           break;
 
@@ -322,17 +348,16 @@ class _ChatScreenState extends State<ChatScreen> {
           break;
       }
     } catch (e) {
-      debugPrint('[RTC] ❌ _onDataMessage error: $e');
+      debugPrint('[RTC] _onDataMessage error: $e');
     }
   }
 
   void _sendMessage() {
     final text = _textController.text.trim();
-    if (text.isEmpty || _rtc == null || _connecting) return;
+    if (text.isEmpty || _http == null) return;
 
     HapticFeedback.lightImpact();
 
-    // Auto-title on first user message
     if (_session.messages.isEmpty && _session.title == '新对话') {
       _session.title = _history!.autoTitle(text);
     }
@@ -342,15 +367,32 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _textController.clear();
 
-    _rtc!.send(_jsonEncode(WireMessage.create(MsgType.chatRequest, {
-      'model': _selectedModel,
-      'messages': [{'role': 'user', 'content': text}],
-    }).toJson()));
+    // Reset thinking/tool state for new turn
+    _thinkingActive = false;
+    _toolCalls.clear();
+
+    _chatSub?.cancel();
+    _chatSub = _http!.chatStream(
+      text,
+      agent: _selectedAgent.isNotEmpty ? _selectedAgent : null,
+      model: _selectedModel,
+    ).listen(
+      (wm) => _onDataMessage(wm),
+      onError: (e) {
+        if (mounted) {
+          setState(() {
+            _streamingBubble = null;
+            _bubbles.add(_ChatBubble(role: 'error', content: '错误：$e', time: DateTime.now()));
+          });
+          _saveHistory();
+        }
+      },
+      onDone: () => _saveHistory(),
+    );
+
     _scrollToBottom();
     _saveHistory();
   }
-
-  // ---- History ----
 
   Future<void> _saveHistory() async {
     if (_history == null) return;
@@ -390,20 +432,29 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String _fmt(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-  // ---- Build ----
-
   @override
   Widget build(BuildContext context) {
-    final canSend = !_connecting && _rtc != null;
+    final canSend = _http != null;
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.device.deviceName.isNotEmpty ? widget.device.deviceName : widget.device.agentId,
-                style: const TextStyle(fontSize: 16)),
-            Text(_selectedModel, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          ],
+        title: Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.device.deviceName.isNotEmpty ? widget.device.deviceName : widget.device.agentId,
+                style: const TextStyle(fontSize: 16),
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                _selectedModel.isNotEmpty ? _selectedModel : '选择模型',
+                style: TextStyle(fontSize: 12, color: cs.onSurface.withAlpha(150)),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
         actions: [
           if (_availableModels.isNotEmpty)
@@ -432,42 +483,39 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: () => _showSessionDrawer(context),
           ),
           Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 160),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: _state == RTCState.connected
-                    ? Colors.green.shade900.withAlpha(150)
-                    : _connecting
-                        ? Colors.orange.shade900.withAlpha(150)
-                        : Colors.grey.shade800.withAlpha(150),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  StatusPulse(
-                    connected: _state == RTCState.connected,
-                    connecting: _connecting,
-                  ),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      _stepLabel.isNotEmpty ? _stepLabel : _statusText,
-                      style: const TextStyle(fontSize: 10),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
+            padding: const EdgeInsets.only(right: 12),
+            child: Tooltip(
+              message: _statusText,
+              child: StatusPulse(connected: canSend, connecting: false),
             ),
           ),
         ],
       ),
       body: Column(
         children: [
+          // Agent picker
+          if (_availableAgents.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: AgentPicker(
+                agents: _availableAgents,
+                selectedAgent: _selectedAgent.isNotEmpty ? _selectedAgent : null,
+                selectedModel: _selectedModel,
+                onChanged: (sel) {
+                  setState(() {
+                    _selectedAgent = sel.$1;
+                    _selectedModel = sel.$2;
+                    _availableModels = _availableAgents
+                        .firstWhere((a) => a.type == sel.$1,
+                            orElse: () => AgentInfo(type: '', label: '', models: []))
+                        .models
+                        .map((m) => m.name)
+                        .toList();
+                  });
+                },
+              ),
+            ),
+          // Message list (thinking is now part of _bubbles)
           if (_bubbles.isEmpty && _streamingBubble == null)
             Expanded(child: _buildWelcome())
           else
@@ -481,11 +529,20 @@ class _ChatScreenState extends State<ChatScreen> {
                 itemBuilder: (ctx, i) {
                   final isStreaming = i >= _bubbles.length;
                   final bubble = isStreaming ? _streamingBubble! : _bubbles[i];
-                  return _BubbleWidget(
-                    bubble: bubble,
-                    onCopy: () => _copyMessage(bubble.content),
-                    showTime: !isStreaming,
-                    timeStr: _fmt(bubble.time),
+                  // For thinking bubbles, the last one is streaming while _thinkingActive
+                  final bubbleIsStreaming = isStreaming ||
+                      (bubble.role == 'thinking' && i == _bubbles.length - 1 && _thinkingActive);
+                  return _AnimatedBubble(
+                    index: i,
+                    key: ValueKey('${bubble.role}-${bubble.time.millisecondsSinceEpoch}-$i'),
+                    child: _BubbleWidget(
+                      bubble: bubble,
+                      onCopy: () => _copyMessage(bubble.content),
+                      showTime: !isStreaming,
+                      timeStr: _fmt(bubble.time),
+                      toolCalls: _toolCalls,
+                      isStreamingBubble: bubbleIsStreaming,
+                    ),
                   );
                 },
               ),
@@ -498,18 +555,19 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildWelcome() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade700),
+            Icon(Icons.chat_bubble_outline, size: 64, color: cs.onSurface.withAlpha(100)),
             const SizedBox(height: 16),
             Text('已连接到 ${widget.device.deviceName.isNotEmpty ? widget.device.deviceName : widget.device.agentId}',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            Text(_connecting ? '正在建立安全连接...' : '发送消息开始对话',
+            Text('发送消息开始对话',
                 style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
@@ -526,10 +584,10 @@ class _ChatScreenState extends State<ChatScreen> {
             child: TextField(
               controller: _textController,
               enabled: canSend,
-              decoration: InputDecoration(
-                hintText: canSend ? '输入消息...' : _statusText,
-                border: const OutlineInputBorder(),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: const InputDecoration(
+                hintText: '输入消息...',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
               textInputAction: TextInputAction.send,
               onSubmitted: canSend ? (_) => _sendMessage() : null,
@@ -636,8 +694,8 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _saveHistory();
-    _reconnectTimer?.cancel();
-    _disposeRTC();
+    _chatSub?.cancel();
+    _http?.dispose();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -650,7 +708,24 @@ class _ChatBubble {
   final String role;
   String content;
   final DateTime time;
-  _ChatBubble({required this.role, required this.content, required this.time});
+  final String? toolId;
+  bool isStreaming;
+  int? inputTokens;
+  int? outputTokens;
+  String? stopReason;
+  _ChatBubble({required this.role, required this.content, required this.time, this.toolId, this.isStreaming = false});
+}
+
+// ---- Tool Call State ----
+
+enum _ToolStatus { running, done, error }
+
+class _ToolCallState {
+  final String name;
+  _ToolStatus status;
+  dynamic input;
+  String? output;
+  _ToolCallState({required this.name, required this.status});
 }
 
 // ---- Bubble Widget ----
@@ -660,19 +735,28 @@ class _BubbleWidget extends StatelessWidget {
   final VoidCallback onCopy;
   final bool showTime;
   final String timeStr;
+  final Map<String, _ToolCallState>? toolCalls;
+  final bool isStreamingBubble;
   const _BubbleWidget({
     required this.bubble,
     required this.onCopy,
     required this.showTime,
     required this.timeStr,
+    this.toolCalls,
+    this.isStreamingBubble = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final isUser = bubble.role == 'user';
     final isError = bubble.role == 'error';
     final isSystem = bubble.role == 'system';
+    final isToolCall = bubble.role == 'tool_call';
+    final isToolResult = bubble.role == 'tool_result';
+    final isThinking = bubble.role == 'thinking';
 
+    // System message
     if (isSystem) {
       return Center(
         child: Padding(
@@ -680,13 +764,13 @@ class _BubbleWidget extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.grey.shade800.withAlpha(80),
+              color: cs.surfaceContainerHighest.withAlpha(80),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               bubble.content,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.grey.shade400,
+                    color: cs.onSurface.withAlpha(140),
                     fontStyle: FontStyle.italic,
                   ),
             ),
@@ -695,6 +779,40 @@ class _BubbleWidget extends StatelessWidget {
       );
     }
 
+    // Thinking block (inside message list)
+    if (isThinking) {
+      return ThinkingBlock(
+        content: bubble.content,
+        isStreaming: isStreamingBubble,
+      );
+    }
+
+    // Tool call card (wired to actual _toolCalls data)
+    if (isToolCall) {
+      final tId = bubble.toolId ?? bubble.content;
+      final ts = toolCalls?[tId];
+      return ToolCallCard(
+        id: tId,
+        name: ts?.name ?? '工具调用',
+        input: ts?.input is Map ? Map<String, dynamic>.from(ts!.input as Map) : null,
+        resultSummary: ts?.output,
+        isError: ts?.status == _ToolStatus.error,
+      );
+    }
+
+    // Tool result card
+    if (isToolResult) {
+      final tId = bubble.toolId ?? '';
+      final ts = toolCalls?[tId];
+      return ToolResultCard(
+        output: bubble.content,
+        isError: ts?.status == _ToolStatus.error,
+        toolId: tId,
+        toolName: ts?.name,
+      );
+    }
+
+    // User / assistant / error bubble
     return GestureDetector(
       onLongPress: onCopy,
       child: Padding(
@@ -709,10 +827,10 @@ class _BubbleWidget extends StatelessWidget {
                 constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
                 decoration: BoxDecoration(
                   color: isError
-                      ? Colors.red.shade900
+                      ? cs.error.withAlpha(180)
                       : isUser
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.surfaceContainerHighest,
+                          ? cs.primary
+                          : cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(16).copyWith(
                     bottomRight: isUser ? const Radius.circular(4) : null,
                     bottomLeft: isUser ? null : const Radius.circular(4),
@@ -726,19 +844,47 @@ class _BubbleWidget extends StatelessWidget {
                         : _MarkdownBody(content: bubble.content),
               ),
             ),
+            // Timestamp + usage footer
             if (showTime)
               Padding(
                 padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
-                child: Text(timeStr,
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelSmall
-                        ?.copyWith(color: Colors.grey.shade600, fontSize: 10)),
+                child: _buildFooter(context, cs),
               ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildFooter(BuildContext context, ColorScheme cs) {
+    final parts = <String>[];
+    // Usage info for assistant responses
+    if (bubble.role == 'assistant') {
+      if (bubble.inputTokens != null && bubble.inputTokens! > 0) {
+        parts.add('↑${_fmtTokens(bubble.inputTokens!)}');
+      }
+      if (bubble.outputTokens != null && bubble.outputTokens! > 0) {
+        parts.add('↓${_fmtTokens(bubble.outputTokens!)}');
+      }
+      if (bubble.stopReason != null && bubble.stopReason!.isNotEmpty) {
+        parts.add(bubble.stopReason!);
+      }
+    }
+    if (parts.isNotEmpty) parts.add('·');
+    parts.add(timeStr);
+
+    return Text(
+      parts.join(' '),
+      style: Theme.of(context)
+          .textTheme
+          .labelSmall
+          ?.copyWith(color: cs.onSurface.withAlpha(100), fontSize: 10),
+    );
+  }
+
+  String _fmtTokens(int n) {
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return n.toString();
   }
 }
 
@@ -751,6 +897,7 @@ class _MarkdownBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
     return MarkdownBody(
       data: content,
       selectable: true,
@@ -759,15 +906,15 @@ class _MarkdownBody extends StatelessWidget {
         code: TextStyle(
           fontFamily: 'monospace',
           fontSize: 13,
-          backgroundColor: isDark ? Colors.white12 : Colors.black12,
+          backgroundColor: cs.onSurface.withAlpha(20),
           color: isDark ? Colors.green.shade300 : Colors.green.shade800,
         ),
         codeblockDecoration: BoxDecoration(
-          color: isDark ? Colors.white10 : Colors.black.withAlpha(15),
+          color: cs.onSurface.withAlpha(10),
           borderRadius: BorderRadius.circular(8),
         ),
         blockquoteDecoration: BoxDecoration(
-          border: Border(left: BorderSide(color: Colors.grey.shade600, width: 3)),
+          border: Border(left: BorderSide(color: cs.onSurface.withAlpha(80), width: 3)),
         ),
         blockquotePadding: const EdgeInsets.only(left: 12),
       ),
@@ -780,7 +927,7 @@ class _MarkdownBody extends StatelessWidget {
 class _AnimatedBubble extends StatefulWidget {
   final int index;
   final Widget child;
-  const _AnimatedBubble({required this.index, required this.child});
+  const _AnimatedBubble({required this.index, required this.child, super.key});
 
   @override
   State<_AnimatedBubble> createState() => _AnimatedBubbleState();
@@ -831,5 +978,3 @@ class _AnimatedBubbleState extends State<_AnimatedBubble>
     );
   }
 }
-
-String _jsonEncode(Map<String, dynamic> map) => jsonEncode(map);

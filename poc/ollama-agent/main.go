@@ -1,155 +1,353 @@
-// Ollama Agent POC: full Agent with pairing + cloud LLM proxy.
+// CrossLink Agent: persistent agent with multi-backend pool (Ollama, Claude, DeepSeek).
 //
-// Flow:
-//   1. Connect to signal server, display QR for pairing
-//   2. Wait for mobile client to pair and establish WebRTC DataChannel
-//   3. Once DataChannel is open, forward LLM requests through it
+// HTTP+SSE mode (v2):
+//
+//	crosslink-agent                    Run HTTP server on :18080 with SSE streaming
+//
+// Service mode (Windows):
+//
+//	crosslink-agent install            Install as Windows service (auto-start)
+//	crosslink-agent uninstall          Remove Windows service
+//
+// Relay mode (cloud, set RELAY_ADDR):
+//
+//	crosslink-agent                    Connect to cloud relay via WebSocket
+//
+// The agent runs an HTTP server, displays a QR code for pairing,
+// and streams AI responses via Server-Sent Events.
+// In relay mode, it connects to a cloud relay server instead of listening locally.
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
+	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"sync"
+	"strings"
 
+	"crosslink-poc/agent"
+	"crosslink-poc/agent/claude"
+	"crosslink-poc/agent/pool"
 	"crosslink-poc/cloud"
 	"crosslink-poc/ollama"
 	"crosslink-poc/pairing"
-	"crosslink-poc/peer"
 )
 
-const (
-	signalAddr = "ws://45.197.144.16:18080"
-	peerID     = "agent-ollama-pc"
+var (
+	listenAddr = envOr("LISTEN_ADDR", ":18080")
+	peerID     = envOr("PEER_ID", "agent-ollama-pc")
 )
 
 func main() {
-	log.SetFlags(log.Ltime | log.Lmicroseconds)
-	log.Printf("=== CrossLink POC: Cloud Agent ===\n")
+	// Detect service mode
+	if svc, err := isWindowsService(); err == nil && svc {
+		setupLogging(false)
+		if err := runService(); err != nil {
+			log.Fatalf("service: %v", err)
+		}
+		return
+	}
 
-	// ---- Load or create persistent keypair ----
+	// Parse commands
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "install":
+			if err := installService(); err != nil {
+				fmt.Fprintf(os.Stderr, "install failed: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "uninstall":
+			if err := uninstallService(); err != nil {
+				fmt.Fprintf(os.Stderr, "uninstall failed: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "help", "-h", "--help":
+			printUsage()
+			return
+		}
+	}
+
+	// Interactive mode
+	setupLogging(true)
+	log.Printf("=== CrossLink Agent v2 (HTTP+SSE) ===")
+	log.Printf("  Use '%s install' to run as Windows service.", os.Args[0])
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Ctrl+C handler
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	go func() {
+		<-sig
+		log.Printf("[agent] received Ctrl+C, shutting down...")
+		cancel()
+	}()
+
+	if err := runAgent(ctx); err != nil {
+		log.Fatalf("agent: %v", err)
+	}
+	log.Printf("[agent] exited.")
+}
+
+func printUsage() {
+	fmt.Printf(`CrossLink Agent v2 — 跨端 AI 代理 (HTTP+SSE)
+
+Usage:
+  %s                Run HTTP server in foreground
+  %s install        Install as Windows service (auto-start on boot)
+  %s uninstall      Remove Windows service
+
+Service name: %s
+`, os.Args[0], os.Args[0], os.Args[0], svcName)
+}
+
+func runAgent(ctx context.Context) error {
+	// ---- Load or create persistent keypair (for future E2E encryption) ----
 	agentKP := loadOrCreateKeypair()
 
-	// Display QR code
+	// ---- Detect LAN IP ----
+	lanIP := detectLANIP()
+	log.Printf("[agent] LAN IP: %s", lanIP)
+
+	// ---- Build BackendPool ----
+	backendPool := pool.NewBackendPool()
+
+	// 1. Ollama (local, if available)
+	ollamaClient := ollama.NewClient("")
+	if version, err := ollamaClient.Ping(); err == nil {
+		models, _ := ollamaClient.ListModels()
+		if len(models) == 0 {
+			models = []ollama.ModelInfo{{Name: "ollama"}}
+		}
+		backendPool.Register("ollama", ollamaClient, ollama.AgentInfo{
+			Type: "ollama", Label: "Ollama (本地)", Models: models,
+		})
+		log.Printf("[agent] 🦙 Ollama ready: %s, %d models", version, len(models))
+	} else {
+		log.Printf("[agent] ⚠️  Ollama not available: %v (skipped)", err)
+	}
+
+	// 2. Claude Code (long-running subprocess)
+	claudePath := envOr("CLAUDE_PATH",
+		`C:\Users\22730\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe`)
+	claudeModel := envOr("CLAUDE_MODEL", "sonnet")
+	claudeSession, err := claude.NewSession(claude.Config{
+		BinaryPath: claudePath,
+		Model:      claudeModel,
+	})
+	if err == nil {
+		backendPool.Register("claude", claudeSession, ollama.AgentInfo{
+			Type:   "claude",
+			Label:  "Claude Code",
+			Models: claudeSession.Models(),
+		})
+		log.Printf("[agent] 🤖 Claude Code ready (model=%s)", claudeModel)
+	} else {
+		log.Printf("[agent] ⚠️  Claude Code not available: %v (skipped)", err)
+	}
+
+	// 3. DeepSeek (cloud fallback)
+	deepseekClient := cloud.NewDeepSeek("", "deepseek-v4-pro")
+	backendPool.Register("deepseek", deepseekClient, ollama.AgentInfo{
+		Type:   "deepseek",
+		Label:  "DeepSeek (云端)",
+		Models: []ollama.ModelInfo{{Name: "deepseek-chat", ParamSize: "V3", Quant: "cloud"}},
+	})
+	log.Printf("[agent] ☁️  DeepSeek ready")
+
+	log.Printf("[agent] BackendPool:\n%s", backendPool.Status())
+
+	// ---- Create HTTP server ----
+	pairToken := envOr("PAIR_TOKEN", "")
+	server, err := agent.NewServer(agent.Config{
+		Addr:      listenAddr,
+		Pool:      backendPool,
+		PairToken: pairToken,
+		LanIP:     lanIP,
+	})
+	if err != nil {
+		return fmt.Errorf("create server: %w", err)
+	}
+
+	// ---- Relay or LAN mode ----
+	relayAddr := os.Getenv("RELAY_ADDR")
+	if relayAddr != "" {
+		return runRelayMode(ctx, server, agentKP, relayAddr)
+	}
+	return runLANMode(ctx, server, agentKP, lanIP)
+}
+
+// runRelayMode connects to a cloud relay via WebSocket (reverse tunnel).
+// The agent does NOT listen on a local HTTP port in this mode.
+func runRelayMode(ctx context.Context, server *agent.Server, agentKP *pairing.KeyPair, relayAddr string) error {
+	relayHTTP := relayAddrToHTTP(relayAddr)
+	serverURL := fmt.Sprintf("%s/pair?token=%s", relayHTTP, server.PairToken())
 	qrPayload := pairing.QRPayload{
-		Version:   1,
+		Version:   2,
 		PublicKey: agentKP.PublicKeyBase64(),
-		ServerURL: signalAddr,
+		ServerURL: serverURL,
 		PeerID:    peerID,
 	}
 	qrURI := pairing.EncodeQR(qrPayload)
 
 	log.Printf("")
 	log.Printf("┌─────────────────────────────────────────────────────┐")
-	log.Printf("│  📱 Scan to connect to Cloud Agent:                │")
+	log.Printf("│  ☁️  Relay mode (cloud):                             │")
+	log.Printf("│  📱 Scan to connect:                                │")
 	log.Printf("│  %s", qrURI)
 	log.Printf("└─────────────────────────────────────────────────────┘")
 	log.Printf("")
+	log.Printf("  Relay:   %s", relayAddr)
+	log.Printf("  Pair URL: %s", serverURL)
+	log.Printf("")
 
-	// Create the handler (sendFn will be set once DataChannel is open)
-	var ollamaHandler *ollama.Handler
-	dataChannelReady := make(chan struct{})
-	var setupOnce sync.Once
+	// Auto-generate QR PNG
+	qrPath := filepath.Join(os.TempDir(), "crosslink-qr.png")
+	go generateAndOpenQR(qrURI, qrPath)
 
-	// Connect to signal + set up WebRTC
-	var p *peer.Peer
-	turnServer := os.Getenv("TURN_SERVER")
-	if turnServer == "" {
-		turnServer = "turn:45.197.144.16:3478?transport=tcp"
-	}
-	turnUser := os.Getenv("TURN_USER")
-	if turnUser == "" {
-		turnUser = "turnuser"
-	}
-	turnPass := os.Getenv("TURN_PASS")
-	if turnPass == "" {
-		turnPass = "crosslinkpass123"
-	}
+	// Cleanup on shutdown
+	go func() {
+		<-ctx.Done()
+		log.Printf("[agent] shutting down relay bridge...")
+		server.Shutdown(context.Background())
+	}()
 
-	p, err := peer.New(peer.Config{
-		PeerID:     peerID,
-		SignalAddr: signalAddr,
-		TURNServer: turnServer,
-		TURNUser:   turnUser,
-		TURNPass:   turnPass,
-		OnMessage: func(raw string) {
-			if ollamaHandler != nil {
-				ollamaHandler.HandleMessage(raw)
-			} else {
-				log.Printf("[agent] received message before handler ready: %s", raw)
-			}
-		},
-		OnSignalMessage: func(raw string) {
-			var msg struct {
-				Type       string `json:"type"`
-				From       string `json:"from"`
-				To         string `json:"to"`
-				PublicKey  string `json:"publicKey"`
-				DeviceName string `json:"deviceName"`
-			}
-			if err := json.Unmarshal([]byte(raw), &msg); err != nil {
-				return
-			}
-			if msg.Type == "pairing-request" {
-				log.Printf("[agent] 📱 Pairing request from %s (%s)", msg.From, msg.DeviceName)
-				acceptPairing(p, agentKP, msg)
-			}
-		},
+	// Connect to relay (blocks, auto-reconnects)
+	bridge := agent.NewRelayBridge(agent.RelayConfig{
+		RelayAddr: relayAddr,
+		PeerID:    peerID,
+		PairToken: server.PairToken(),
+		Server:    server,
 	})
-	if err != nil {
-		log.Fatalf("create peer: %v", err)
-	}
-	defer p.Close()
-
-	log.Printf("[agent] connected to signal, waiting for connections...")
-
-	// Set up connect callback — idempotent, safe to fire on reconnection.
-	p.SetOnConnect(func() {
-		log.Printf("[agent] ✅ DataChannel established!")
-
-		// Initialize cloud LLM backend (DeepSeek)
-		backend := cloud.NewDeepSeek("", "deepseek-chat")
-		ollamaHandler = ollama.NewHandler(backend, p.Send)
-		log.Printf("[agent] LLM handler ready (DeepSeek cloud)")
-
-		// Check connectivity
-		version, err := backend.Ping()
-		if err != nil {
-			log.Printf("[agent] ⚠️  Cloud API not reachable: %v", err)
-		} else {
-			log.Printf("[agent] ☁️  Cloud backend: %s", version)
-		}
-
-		setupOnce.Do(func() {
-			close(dataChannelReady)
-		})
-	})
-
-	// Wait for data channel or Ctrl+C
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt)
-
-	select {
-	case <-sig:
-		log.Printf("[agent] shutting down...")
-	case <-dataChannelReady:
-		log.Printf("[agent] Cloud proxy active. Press Ctrl+C to stop.")
-		<-sig
-		log.Printf("[agent] shutting down...")
-	}
+	return bridge.Connect(ctx)
 }
 
-// loadOrCreateKeypair returns the agent's keypair, loading from disk if available.
+// runLANMode listens for direct HTTP connections on the local network (default).
+func runLANMode(ctx context.Context, server *agent.Server, agentKP *pairing.KeyPair, lanIP string) error {
+	serverURL := fmt.Sprintf("http://%s%s", lanIP, listenAddr)
+	qrPayload := pairing.QRPayload{
+		Version:   2,
+		PublicKey: agentKP.PublicKeyBase64(),
+		ServerURL: serverURL + "/pair?token=" + server.PairToken(),
+		PeerID:    peerID,
+	}
+	qrURI := pairing.EncodeQR(qrPayload)
+
+	log.Printf("")
+	log.Printf("┌─────────────────────────────────────────────────────┐")
+	log.Printf("│  📱 Scan to connect (LAN mode):                     │")
+	log.Printf("│  %s", qrURI)
+	log.Printf("└─────────────────────────────────────────────────────┘")
+	log.Printf("")
+	log.Printf("  Pair URL: %s/pair?token=%s", serverURL, server.PairToken())
+	log.Printf("")
+
+	// Auto-generate QR PNG and open it
+	qrPath := filepath.Join(os.TempDir(), "crosslink-qr.png")
+	go generateAndOpenQR(qrURI, qrPath)
+
+	// Start server (blocks)
+	go func() {
+		<-ctx.Done()
+		log.Printf("[agent] shutting down server...")
+		server.Shutdown(context.Background())
+	}()
+
+	return server.ListenAndServe()
+}
+
+// relayAddrToHTTP converts a WebSocket relay address to an HTTP base URL.
+// e.g. "ws://45.197.144.16:18080/agent" → "http://45.197.144.16:18080"
+func relayAddrToHTTP(addr string) string {
+	u, err := url.Parse(addr)
+	if err != nil {
+		// Fallback: simple string replacement
+		s := strings.Replace(addr, "ws://", "http://", 1)
+		s = strings.Replace(s, "wss://", "https://", 1)
+		if idx := strings.Index(s, "/agent"); idx > 0 {
+			s = s[:idx]
+		}
+		return s
+	}
+	switch u.Scheme {
+	case "wss":
+		u.Scheme = "https"
+	default:
+		u.Scheme = "http"
+	}
+	u.Path = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
+}
+
+// generateAndOpenQR creates a QR code PNG and opens it.
+// Uses Python (qrcode + PIL) which is available on the dev machine.
+func generateAndOpenQR(qrURI, path string) error {
+	// Use forward slashes to avoid Python unicode escape issues on Windows
+	savePath := strings.ReplaceAll(path, `\`, `/`)
+	script := fmt.Sprintf(`import qrcode
+img = qrcode.make("%s")
+img.save("%s")
+`, qrURI, savePath)
+	cmd := exec.Command("python3", "-c", script)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		// Try python (without 3) as fallback
+		cmd2 := exec.Command("python", "-c", script)
+		cmd2.Stderr = os.Stderr
+		if err2 := cmd2.Run(); err2 != nil {
+			return fmt.Errorf("qr generation failed (python3: %v, python: %v)", err, err2)
+		}
+	}
+	log.Printf("[agent] QR saved to %s", path)
+	return openFile(path)
+}
+
+// openFile opens a file with the default application on Windows.
+func openFile(path string) error {
+	return exec.Command("cmd", "/c", "start", "", path).Start()
+}
+
+// detectLANIP tries to find the local LAN IP address.
+func detectLANIP() string {
+	// Check env first
+	if ip := os.Getenv("LAN_IP"); ip != "" {
+		return ip
+	}
+
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+			// Prefer 192.168.x.x or 10.x.x.x
+			s := ipnet.IP.String()
+			if strings.HasPrefix(s, "192.168.") || strings.HasPrefix(s, "10.") || strings.HasPrefix(s, "172.") {
+				return s
+			}
+		}
+	}
+	return "127.0.0.1"
+}
+
+// ---- Keypair (kept for future E2E encryption) ----
+
 func loadOrCreateKeypair() *pairing.KeyPair {
-	// Derive machine-bound master key from hostname + peerID
 	masterKey := deriveMasterKey(peerID)
 
-	// Determine config directory
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		home, _ := os.UserHomeDir()
@@ -164,7 +362,6 @@ func loadOrCreateKeypair() *pairing.KeyPair {
 
 	keyPath := filepath.Join(configDir, "agent_key.json")
 
-	// Try loading existing keypair
 	kp, err := pairing.LoadKeyPair(keyPath, &masterKey)
 	if err == nil {
 		log.Printf("[agent] loaded existing keypair from %s", keyPath)
@@ -175,7 +372,6 @@ func loadOrCreateKeypair() *pairing.KeyPair {
 		log.Printf("[agent] WARNING: failed to load keypair (%v), generating new one", err)
 	}
 
-	// Generate new keypair and save
 	kp, err = pairing.GenerateKeyPair()
 	if err != nil {
 		log.Fatalf("generate keypair: %v", err)
@@ -188,59 +384,24 @@ func loadOrCreateKeypair() *pairing.KeyPair {
 	return kp
 }
 
-// deriveMasterKey creates a machine-bound 32-byte key.
 func deriveMasterKey(peerID string) [32]byte {
 	hostname, _ := os.Hostname()
 	seed := fmt.Sprintf("%s:%s:crosslink-agent-key-v1", hostname, peerID)
 	return sha256.Sum256([]byte(seed))
 }
 
-func acceptPairing(p *peer.Peer, agentKP *pairing.KeyPair, req struct {
-	Type       string `json:"type"`
-	From       string `json:"from"`
-	To         string `json:"to"`
-	PublicKey  string `json:"publicKey"`
-	DeviceName string `json:"deviceName"`
-}) {
-	log.Printf("[agent] Accepting pairing from %s...", req.DeviceName)
-
-	ltToken, err := pairing.GenerateLongTermToken()
-	if err != nil {
-		log.Printf("[agent] generate token error: %v", err)
-		return
-	}
-	ltToken.AgentID = peerID
-	ltToken.DeviceID = req.From
-	ltToken.DeviceName = req.DeviceName
-
-	tokenBytes, _ := json.Marshal(ltToken)
-
-	// Decode client's public key
-	var clientPubKey [32]byte
-	decoded, _ := base64Decode(req.PublicKey)
-	copy(clientPubKey[:], decoded)
-
-	encToken, err := agentKP.EncryptToken(tokenBytes, clientPubKey)
-	if err != nil {
-		log.Printf("[agent] encrypt token: %v", err)
-		return
-	}
-
-	encTokenJSON, _ := json.Marshal(encToken)
-
-	reply := map[string]interface{}{
-		"type":    "pairing-accepted",
-		"from":    peerID,
-		"to":      req.From,
-		"allowed": true,
-		"token":   string(encTokenJSON),
-	}
-	replyBytes, _ := json.Marshal(reply)
-	_ = p.SendSignal(string(replyBytes))
-
-	log.Printf("[agent] ✅ Pairing accepted")
-}
-
 func base64Decode(s string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(s)
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// Placeholder for old acceptPairing (no longer needed, kept for service compat)
+func _() {
+	_ = json.Marshal
 }

@@ -64,3 +64,9 @@ poc/qrgen/pairing-qr.png
 # Agent data (contains encrypted keys — don't commit)
 *_key.json
 devices.json
+poc/settings_tmp.json
+qr_code.png
+qr_code.txt
+release/
+.claude/
+poc/.claude/
