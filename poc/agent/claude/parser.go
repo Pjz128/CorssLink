@@ -20,6 +20,10 @@ type ParseEvent struct {
 	ToolName  string
 	ToolInput json.RawMessage
 
+	// Permission / choice request (control_request)
+	RequestID      string
+	DecisionReason string
+
 	// Tool result (from a following message)
 	ToolResultOutput  string
 	ToolResultIsError bool
@@ -84,6 +88,19 @@ func startParser(r io.Reader, out chan<- ParseEvent) {
 				}
 				ev := parseStreamEvent(&evt, msg.SessionID, &currentToolID, &currentToolName)
 				out <- ev
+			case "control_request":
+				var cr controlRequest
+				if err := json.Unmarshal(msg.Request, &cr); err == nil {
+					out <- ParseEvent{
+						Type:           "control_request",
+						RequestID:      msg.RequestID,
+						ToolName:       cr.ToolName,
+						ToolID:         cr.ToolUseID,
+						ToolInput:      cr.Input,
+						DecisionReason: cr.DecisionReason,
+						SessionID:      msg.SessionID,
+					}
+				}
 			case "result":
 				out <- ParseEvent{
 					Type:      "result",

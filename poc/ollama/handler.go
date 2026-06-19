@@ -153,6 +153,8 @@ func (h *Handler) forwardEvent(evt BackendEvent) {
 		h.sendRaw(MsgTypeToolInput, evt.Data)
 	case "tool_result":
 		h.sendRaw(MsgTypeToolResult, evt.Data)
+	case "choice_request":
+		h.sendRaw(MsgTypeChoiceReq, evt.Data)
 	}
 }
 

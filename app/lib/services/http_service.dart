@@ -84,6 +84,27 @@ class HttpService {
     throw Exception('fetchAgents: HTTP ${response.statusCode}');
   }
 
+  /// POST /api/choice → respond to a permission prompt.
+  Future<bool> sendChoice(String requestId, String behavior) async {
+    final uri = Uri.parse('$baseUrl/api/choice');
+    try {
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $sessionToken',
+        },
+        body: jsonEncode({
+          'requestId': requestId,
+          'behavior': behavior,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// GET /health → true if server is reachable.
   Future<bool> healthCheck() async {
     try {

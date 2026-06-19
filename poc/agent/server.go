@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"crosslink-poc/agent/claude"
 	"crosslink-poc/agent/pool"
 	"crosslink-poc/ollama"
 )
@@ -72,6 +73,7 @@ func NewServer(cfg Config) (*Server, error) {
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/api/pair", s.handlePair)
 	mux.HandleFunc("/api/chat", s.handleChat)
+	mux.HandleFunc("/api/choice", s.handleChoice)
 	mux.HandleFunc("/api/agents", s.handleAgents)
 	mux.HandleFunc("/api/sessions", s.handleSessions)
 	mux.HandleFunc("/api/sessions/", s.handleSessionByID)
@@ -228,6 +230,8 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 				eventType = ollama.MsgTypeToolInput
 			case "tool_result":
 				eventType = ollama.MsgTypeToolResult
+			case "choice_request":
+				eventType = ollama.MsgTypeChoiceReq
 			default:
 				return
 			}
@@ -285,6 +289,40 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		agents = []ollama.AgentInfo{}
 	}
 	jsonOK(w, map[string]any{"agents": agents})
+}
+
+func (s *Server) handleChoice(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method not allowed")
+		return
+	}
+
+	session := s.authenticate(r)
+	if session == nil {
+		jsonErr(w, 401, "unauthorized")
+		return
+	}
+
+	var req struct {
+		RequestID string `json:"requestId"`
+		Behavior  string `json:"behavior"` // "allow" or "deny"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonErr(w, 400, "invalid body")
+		return
+	}
+	if req.RequestID == "" || (req.Behavior != "allow" && req.Behavior != "deny") {
+		jsonErr(w, 400, "missing requestId or invalid behavior")
+		return
+	}
+
+	if !claude.SubmitChoice(req.RequestID, req.Behavior) {
+		jsonErr(w, 404, "unknown or expired permission request")
+		return
+	}
+
+	log.Printf("[server] choice: %s → %s (session=%s)", req.RequestID, req.Behavior, session.ID)
+	jsonOK(w, map[string]any{"ok": true})
 }
 
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {

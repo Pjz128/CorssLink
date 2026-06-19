@@ -13,6 +13,7 @@ import '../widgets/thinking_block.dart';
 import '../widgets/tool_call_card.dart';
 import '../widgets/tool_result_card.dart';
 import '../widgets/agent_picker.dart';
+import '../widgets/permission_card.dart';
 
 class ChatScreen extends StatefulWidget {
   final PairedDevice device;
@@ -53,6 +54,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Tool call state
   final Map<String, _ToolCallState> _toolCalls = {};
+  // Permission/choice request state
+  final Map<String, ChoiceRequestEvent> _choiceRequests = {};
 
   ChatHistoryService? _history;
   late Session _session;
@@ -139,6 +142,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _streamingBubble = null;
       _thinkingActive = false;
       _toolCalls.clear();
+      _choiceRequests.clear();
     });
     _refreshSessionList();
   }
@@ -314,8 +318,8 @@ class _ChatScreenState extends State<ChatScreen> {
             setState(() {
               _toolCalls[tId] = _ToolCallState(name: tName, status: _ToolStatus.running);
               _finalizeThinkingBubble();
+              _bubbles.add(_ChatBubble(role: 'tool_call', content: tId, time: DateTime.now(), toolId: tId));
             });
-            _bubbles.add(_ChatBubble(role: 'tool_call', content: tId, time: DateTime.now(), toolId: tId));
           }
           _scrollToBottom();
           break;
@@ -337,8 +341,23 @@ class _ChatScreenState extends State<ChatScreen> {
             setState(() {
               _toolCalls[tId]?.status = isError ? _ToolStatus.error : _ToolStatus.done;
               _toolCalls[tId]?.output = output;
+              _bubbles.add(_ChatBubble(role: 'tool_result', content: output, time: DateTime.now(), toolId: tId));
             });
-            _bubbles.add(_ChatBubble(role: 'tool_result', content: output, time: DateTime.now(), toolId: tId));
+          }
+          break;
+
+        case MsgType.choiceRequest:
+          final evt = ChoiceRequestEvent.fromJson(wm.body);
+          if (mounted && evt.requestId.isNotEmpty) {
+            setState(() {
+              _choiceRequests[evt.requestId] = evt;
+              _bubbles.add(_ChatBubble(
+                role: 'choice_request',
+                content: evt.requestId,
+                time: DateTime.now(),
+              ));
+            });
+            _scrollToBottom();
           }
           break;
 
@@ -370,6 +389,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Reset thinking/tool state for new turn
     _thinkingActive = false;
     _toolCalls.clear();
+    _choiceRequests.clear();
 
     _chatSub?.cancel();
     _chatSub = _http!.chatStream(
@@ -394,10 +414,21 @@ class _ChatScreenState extends State<ChatScreen> {
     _saveHistory();
   }
 
+  Future<bool> _handleChoice(String requestId, String behavior) async {
+    if (_http == null) return false;
+    final ok = await _http!.sendChoice(requestId, behavior);
+    if (mounted && ok) {
+      setState(() {
+        _choiceRequests.remove(requestId);
+      });
+    }
+    return ok;
+  }
+
   Future<void> _saveHistory() async {
     if (_history == null) return;
     _session.messages.clear();
-    for (final b in _bubbles.where((b) => b.role != 'system')) {
+    for (final b in _bubbles.where((b) => b.role != 'system' && b.role != 'choice_request')) {
       _session.messages.add(ChatRecord(role: b.role, content: b.content, time: b.time.millisecondsSinceEpoch));
     }
     if (_streamingBubble != null) {
@@ -541,6 +572,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       showTime: !isStreaming,
                       timeStr: _fmt(bubble.time),
                       toolCalls: _toolCalls,
+                      choiceRequests: _choiceRequests,
+                      onChoice: _handleChoice,
                       isStreamingBubble: bubbleIsStreaming,
                     ),
                   );
@@ -548,6 +581,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           const Divider(height: 1),
+          _buildQuickActions(canSend),
           _buildInput(canSend),
         ],
       ),
@@ -571,6 +605,130 @@ class _ChatScreenState extends State<ChatScreen> {
                 style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(bool canSend) {
+    final cs = Theme.of(context).colorScheme;
+    // Only show when connected and chat is active (not welcome screen)
+    if (_bubbles.isEmpty) return const SizedBox.shrink();
+
+    final actions = [
+      _QuickAction(
+        icon: Icons.clear_all,
+        label: '清除',
+        tooltip: '清除会话上下文',
+        onTap: canSend ? () => _quickCommand('/clear') : null,
+      ),
+      _QuickAction(
+        icon: Icons.compress,
+        label: '压缩',
+        tooltip: '压缩上下文（/compact）',
+        onTap: canSend ? () => _quickCommand('/compact') : null,
+      ),
+      _QuickAction(
+        icon: Icons.model_training,
+        label: _selectedModel.isNotEmpty ? _selectedModel : '模型',
+        tooltip: '切换模型: $_selectedModel',
+        onTap: canSend ? _showModelSheet : null,
+      ),
+      _QuickAction(
+        icon: Icons.stop_circle_outlined,
+        label: '停止',
+        tooltip: '停止当前生成',
+        onTap: canSend ? _stopGenerating : null,
+      ),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      child: Row(
+        children: actions.map((a) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: ActionChip(
+              avatar: Icon(a.icon, size: 16, color: a.onTap != null ? cs.primary : cs.onSurface.withAlpha(100)),
+              label: Text(
+                a.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: a.onTap != null ? cs.onSurface : cs.onSurface.withAlpha(100),
+                ),
+              ),
+              onPressed: a.onTap,
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              side: BorderSide(color: cs.outlineVariant.withAlpha(80)),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  void _quickCommand(String cmd) {
+    if (_http == null) return;
+    HapticFeedback.lightImpact();
+    // Send the command as a user message; Claude CLI processes /commands natively.
+    _chatSub?.cancel();
+    _thinkingActive = false;
+    _toolCalls.clear();
+    _choiceRequests.clear();
+
+    final bubble = _ChatBubble(role: 'user', content: cmd, time: DateTime.now());
+    setState(() {
+      _bubbles.add(bubble);
+    });
+
+    _chatSub = _http!.chatStream(cmd, agent: _selectedAgent, model: _selectedModel).listen(
+      (wm) => _onDataMessage(wm),
+      onError: (e) {
+        if (mounted) {
+          setState(() {
+            _streamingBubble = null;
+            _bubbles.add(_ChatBubble(role: 'error', content: '错误：$e', time: DateTime.now()));
+          });
+        }
+      },
+    );
+    _saveHistory();
+  }
+
+  void _stopGenerating() {
+    _chatSub?.cancel();
+    _chatSub = null;
+    if (_streamingBubble != null) {
+      setState(() {
+        _bubbles.add(_streamingBubble!);
+        _streamingBubble = null;
+      });
+    }
+    _thinkingActive = false;
+    _finalizeThinkingBubble();
+  }
+
+  void _showModelSheet() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => AgentPicker(
+        agents: _availableAgents,
+        selectedAgent: _selectedAgent,
+        selectedModel: _selectedModel,
+        onChanged: (sel) {
+          setState(() {
+            _selectedAgent = sel.$1;
+            _selectedModel = sel.$2;
+            if (_availableAgents.any((a) => a.type == sel.$1)) {
+              final ag = _availableAgents.firstWhere((a) => a.type == sel.$1);
+              _availableModels = ag.models.map((m) => m.name).toList();
+              if (!_availableModels.contains(sel.$2)) {
+                _selectedModel = _availableModels.first;
+              }
+            }
+          });
+        },
       ),
     );
   }
@@ -736,6 +894,8 @@ class _BubbleWidget extends StatelessWidget {
   final bool showTime;
   final String timeStr;
   final Map<String, _ToolCallState>? toolCalls;
+  final Map<String, ChoiceRequestEvent>? choiceRequests;
+  final Future<bool> Function(String requestId, String behavior)? onChoice;
   final bool isStreamingBubble;
   const _BubbleWidget({
     required this.bubble,
@@ -743,6 +903,8 @@ class _BubbleWidget extends StatelessWidget {
     required this.showTime,
     required this.timeStr,
     this.toolCalls,
+    this.choiceRequests,
+    this.onChoice,
     this.isStreamingBubble = false,
   });
 
@@ -755,6 +917,7 @@ class _BubbleWidget extends StatelessWidget {
     final isToolCall = bubble.role == 'tool_call';
     final isToolResult = bubble.role == 'tool_result';
     final isThinking = bubble.role == 'thinking';
+    final isChoiceRequest = bubble.role == 'choice_request';
 
     // System message
     if (isSystem) {
@@ -809,6 +972,31 @@ class _BubbleWidget extends StatelessWidget {
         isError: ts?.status == _ToolStatus.error,
         toolId: tId,
         toolName: ts?.name,
+      );
+    }
+
+    // Permission / choice request card
+    if (isChoiceRequest) {
+      final reqId = bubble.content;
+      final evt = choiceRequests?[reqId];
+      if (evt != null && onChoice != null) {
+        return PermissionCard(
+          event: evt,
+          onChoice: onChoice!,
+        );
+      }
+      // Expired or already-responded request
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            '权限请求已过期',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(100),
+            ),
+          ),
+        ),
       );
     }
 
@@ -923,6 +1111,20 @@ class _MarkdownBody extends StatelessWidget {
 }
 
 // ---- Animated Bubble Wrapper ----
+
+/// Data class for a quick action chip.
+class _QuickAction {
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback? onTap;
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    this.onTap,
+  });
+}
 
 class _AnimatedBubble extends StatefulWidget {
   final int index;

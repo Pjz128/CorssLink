@@ -39,6 +39,19 @@ type claudeMsg struct {
 	SessionID string          `json:"session_id"`
 	Model     string          `json:"model"`    // present on system/init
 	Cwd       string          `json:"cwd"`      // present on system/init
+
+	// control_request fields (permission prompts with --permission-prompt-tool stdio)
+	RequestID string          `json:"request_id,omitempty"`
+	Request   json.RawMessage `json:"request,omitempty"`
+}
+
+// controlRequest is the nested "request" object inside a control_request message.
+type controlRequest struct {
+	Subtype        string          `json:"subtype"`
+	ToolName       string          `json:"tool_name"`
+	Input          json.RawMessage `json:"input"`
+	DecisionReason string          `json:"decision_reason"`
+	ToolUseID      string          `json:"tool_use_id"`
 }
 
 // streamEvent is the inner "event" object for "stream_event" messages.

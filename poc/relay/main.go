@@ -400,6 +400,57 @@ func (rs *relayServer) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (rs *relayServer) handleChoice(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	sessionToken := extractBearerToken(r.Header.Get("Authorization"))
+	if sessionToken == "" {
+		jsonError(w, http.StatusUnauthorized, "missing authorization")
+		return
+	}
+
+	ac := rs.hub.findAgentBySessionToken(sessionToken)
+	if ac == nil {
+		jsonError(w, http.StatusServiceUnavailable, "agent offline")
+		return
+	}
+
+	body, err := readLimitedBody(r, maxBodySize)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, "body too large")
+		return
+	}
+
+	headers := map[string]string{
+		"Content-Type":  "application/json",
+		"Authorization": "Bearer " + sessionToken,
+	}
+	ch, rid, err := rs.hub.forwardToAgent(ac, "POST", "/api/choice", headers, body)
+	if err != nil {
+		jsonError(w, http.StatusBadGateway, "agent unreachable")
+		return
+	}
+
+	select {
+	case msg, ok := <-ch:
+		if !ok {
+			jsonError(w, http.StatusBadGateway, "agent disconnected")
+			return
+		}
+		rs.writeNonStreamingResponse(w, msg)
+	case <-time.After(30 * time.Second):
+		rs.hub.mu.Lock()
+		delete(rs.hub.pending, rid)
+		rs.hub.mu.Unlock()
+		jsonError(w, http.StatusGatewayTimeout, "agent timeout")
+	case <-r.Context().Done():
+		ac.writeMsg(wireMsg{Type: msgCancel, RID: rid})
+	}
+}
+
 func (rs *relayServer) handleAgents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		jsonError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -728,6 +779,7 @@ func main() {
 	mux.HandleFunc("/health", rs.handleHealth)
 	mux.HandleFunc("/api/pair", rs.handlePair)
 	mux.HandleFunc("/api/chat", rs.handleChat)
+	mux.HandleFunc("/api/choice", rs.handleChoice)
 	mux.HandleFunc("/api/agents", rs.handleAgents)
 	mux.HandleFunc("/api/sessions", rs.handleSessions)
 	mux.HandleFunc("/api/sessions/", rs.handleSessionByID)

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -35,8 +36,8 @@ type Session struct {
 
 	// Per-invocation streaming state
 	mu       sync.Mutex
-	tokenCh  chan string   // ChatStream token output
-	errCh    chan error    // ChatStream error output
+	tokenCh  chan string    // ChatStream token output
+	errCh    chan error     // ChatStream error output
 	parseCh  chan ParseEvent // parser events
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -184,6 +185,7 @@ func (s *Session) start() error {
 		"--output-format", "stream-json",
 		"--verbose",
 		"--include-partial-messages",
+		"--permission-prompt-tool", "stdio",
 		"--model", s.model,
 	)
 
@@ -279,13 +281,25 @@ func (s *Session) eventLoop() {
 				go s.executeAndRespond(evt.ToolID, toolName, input)
 			}
 
+		case "control_request":
+			// Claude needs user permission before executing a tool.
+			// Forward to phone and wait for choice response asynchronously.
+			log.Printf("[claude] permission: %s (%s…) — %s",
+				evt.ToolName, evt.RequestID[:min(12, len(evt.RequestID))], evt.DecisionReason)
+			go s.handleControlRequest(evt)
+
 		case "done":
 			s.lastInputTokens = evt.InputTokens
 			s.lastOutputTokens = evt.OutputTokens
-			s.lastStopReason = evt.StopReason
+			// message_delta carries the authoritative stop_reason; message_stop
+			// follows without one. Only update from non-empty values so a trailing
+			// message_stop doesn't overwrite "tool_use" with "".
+			if evt.StopReason != "" {
+				s.lastStopReason = evt.StopReason
+			}
 			// If Claude stopped for tool_use, don't close channels yet —
 			// the tool will execute and Claude will continue streaming.
-			if evt.StopReason == "tool_use" {
+			if s.lastStopReason == "tool_use" {
 				continue
 			}
 			if s.tokenCh != nil {
@@ -311,6 +325,79 @@ func (s *Session) eventLoop() {
 // LastUsage returns token usage and stop reason from the most recent completion.
 func (s *Session) LastUsage() (int, int, string) {
 	return s.lastInputTokens, s.lastOutputTokens, s.lastStopReason
+}
+
+// ---- Permission / Choice handling ----
+
+// choiceResponse represents the user's decision for a permission prompt.
+type choiceResponse struct {
+	Behavior string // "allow" or "deny"
+	Message  string // optional deny reason
+}
+
+// Global registry maps control_request request_id → response channel.
+var choiceRegistry sync.Map // map[string] chan choiceResponse
+
+// SubmitChoice resolves a pending permission prompt. Called from the HTTP handler
+// when the mobile user taps Allow or Deny.
+func SubmitChoice(requestID string, behavior string) bool {
+	ch, ok := choiceRegistry.Load(requestID)
+	if !ok {
+		return false
+	}
+	ch.(chan choiceResponse) <- choiceResponse{Behavior: behavior}
+	return true
+}
+
+// handleControlRequest forwards a Claude permission prompt to the phone,
+// waits for the user's choice, and writes the response back to Claude's stdin.
+func (s *Session) handleControlRequest(evt ParseEvent) {
+	// Forward to phone
+	s.emitEvent("choice_request", map[string]any{
+		"requestId":      evt.RequestID,
+		"toolName":       evt.ToolName,
+		"toolUseId":      evt.ToolID,
+		"input":          evt.ToolInput,
+		"decisionReason": evt.DecisionReason,
+	})
+
+	// Wait for response
+	ch := make(chan choiceResponse, 1)
+	choiceRegistry.Store(evt.RequestID, ch)
+	defer choiceRegistry.Delete(evt.RequestID)
+
+	select {
+	case resp := <-ch:
+		log.Printf("[claude] permission: %s → %s", evt.RequestID[:min(12, len(evt.RequestID))], resp.Behavior)
+		s.writeControlResponse(evt.RequestID, resp.Behavior)
+	case <-time.After(120 * time.Second):
+		log.Printf("[claude] permission: %s → timeout (auto-deny)", evt.RequestID[:min(12, len(evt.RequestID))])
+		s.writeControlResponse(evt.RequestID, "deny")
+	}
+}
+
+// writeControlResponse sends a control_response message to Claude's stdin.
+func (s *Session) writeControlResponse(requestID string, behavior string) {
+	resp := map[string]any{
+		"type": "control_response",
+		"response": map[string]any{
+			"subtype":    "success",
+			"request_id": requestID,
+			"response": map[string]any{
+				"behavior":     behavior,
+				"updatedInput": map[string]any{},
+			},
+		},
+	}
+	if behavior == "deny" {
+		resp["response"].(map[string]any)["response"].(map[string]any)["message"] = "User denied"
+	}
+	data, _ := json.Marshal(resp)
+	if s.stdin != nil {
+		if _, err := s.stdin.Write(append(data, '\n')); err != nil {
+			log.Printf("[claude] writeControlResponse error: %v", err)
+		}
+	}
 }
 
 // ---- Tool execution ----
@@ -384,12 +471,20 @@ func execBash(params map[string]interface{}) (string, bool) {
 	if cmdStr == "" {
 		return "no command provided", true
 	}
-	// Security: run with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "bash", "-c", cmdStr)
-	cmd.Env = append(os.Environ(), "HOME=/root", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "cmd", "/c", cmdStr)
+		cmd.Env = os.Environ()
+	} else {
+		cmd = exec.CommandContext(ctx, "bash", "-c", cmdStr)
+		cmd.Env = append(os.Environ(),
+			"HOME=/root",
+			"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -440,7 +535,17 @@ func execGrep(params map[string]interface{}) (string, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "grep", "-rn", "--include=*.go", "--include=*.dart", "--include=*.py", "--include=*.js", "--include=*.ts", "--include=*.yaml", "--include=*.json", "--include=*.md", pattern, path)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "cmd", "/c",
+			fmt.Sprintf("findstr /s /n /i %s %s\\*.* 2>&1", pattern, path))
+	} else {
+		cmd = exec.CommandContext(ctx, "grep", "-rn",
+			"--include=*.go", "--include=*.dart", "--include=*.py",
+			"--include=*.js", "--include=*.ts", "--include=*.yaml",
+			"--include=*.json", "--include=*.md",
+			pattern, path)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -463,16 +568,23 @@ func execGlob(params map[string]interface{}) (string, bool) {
 		pattern = "**/*"
 	}
 	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		// Try with doublestar-style by using find
+	if err != nil || len(matches) == 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "find", ".", "-name", pattern)
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cleanPattern := strings.ReplaceAll(pattern, "**/", "")
+			cleanPattern = strings.ReplaceAll(cleanPattern, "**", "*")
+			cmd = exec.CommandContext(ctx, "cmd", "/c",
+				fmt.Sprintf("dir /s /b %s 2>nul", cleanPattern))
+		} else {
+			cmd = exec.CommandContext(ctx, "find", ".", "-name", pattern)
+		}
 		out, _ := cmd.Output()
+		if len(out) == 0 && len(matches) == 0 {
+			return "no matches", false
+		}
 		return string(out), false
-	}
-	if len(matches) == 0 {
-		return "no matches", false
 	}
 	return strings.Join(matches, "\n"), false
 }

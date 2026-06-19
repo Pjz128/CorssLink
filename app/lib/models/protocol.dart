@@ -17,6 +17,7 @@ class MsgType {
   static const toolUse = 'tool-use';
   static const toolInput = 'tool-input';
   static const toolResult = 'tool-result';
+  static const choiceRequest = 'choice-req';
   static const setModel = 'set-model';
   static const listAgents = 'list-agents';
 }
@@ -171,6 +172,33 @@ class ToolResultEvent {
       name: json['name'] as String? ?? '',
       output: json['output'] as String? ?? '',
       isError: json['isError'] as bool? ?? false,
+    );
+  }
+}
+
+/// A permission/choice request from Claude forwarded to mobile.
+class ChoiceRequestEvent {
+  final String requestId;
+  final String toolName;
+  final String? toolUseId;
+  final Map<String, dynamic>? input;
+  final String? decisionReason;
+
+  ChoiceRequestEvent({
+    required this.requestId,
+    required this.toolName,
+    this.toolUseId,
+    this.input,
+    this.decisionReason,
+  });
+
+  factory ChoiceRequestEvent.fromJson(Map<String, dynamic> json) {
+    return ChoiceRequestEvent(
+      requestId: json['requestId'] as String? ?? '',
+      toolName: json['toolName'] as String? ?? '',
+      toolUseId: json['toolUseId'] as String?,
+      input: json['input'] as Map<String, dynamic>?,
+      decisionReason: json['decisionReason'] as String?,
     );
   }
 }

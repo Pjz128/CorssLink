@@ -23,6 +23,7 @@ const (
 	MsgTypeToolUse    = "tool-use"    // Agent → Client: tool call started
 	MsgTypeToolInput  = "tool-input"  // Agent → Client: tool input streaming
 	MsgTypeToolResult = "tool-result" // Agent → Client: tool result
+	MsgTypeChoiceReq  = "choice-req"  // Agent → Client: permission/choice prompt
 	MsgTypeSetModel   = "set-model"   // Client → Agent: switch model/agent
 	MsgTypeListAgents = "list-agents" // Client → Agent: list agent types
 )
