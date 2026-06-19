@@ -185,7 +185,6 @@ func (s *Session) start() error {
 		"--output-format", "stream-json",
 		"--verbose",
 		"--include-partial-messages",
-		"--permission-prompt-tool", "stdio",
 		"--model", s.model,
 	)
 
@@ -281,13 +280,6 @@ func (s *Session) eventLoop() {
 				go s.executeAndRespond(evt.ToolID, toolName, input)
 			}
 
-		case "control_request":
-			// Claude needs user permission before executing a tool.
-			// Forward to phone and wait for choice response asynchronously.
-			log.Printf("[claude] permission: %s (%s…) — %s",
-				evt.ToolName, evt.RequestID[:min(12, len(evt.RequestID))], evt.DecisionReason)
-			go s.handleControlRequest(evt)
-
 		case "done":
 			s.lastInputTokens = evt.InputTokens
 			s.lastOutputTokens = evt.OutputTokens
@@ -329,17 +321,25 @@ func (s *Session) LastUsage() (int, int, string) {
 
 // ---- Permission / Choice handling ----
 
+// needsPermission returns true for tools that require user approval.
+func needsPermission(toolName string) bool {
+	switch toolName {
+	case "Bash", "Write", "Edit":
+		return true
+	default:
+		return false // Read, Grep, Glob are safe
+	}
+}
+
 // choiceResponse represents the user's decision for a permission prompt.
 type choiceResponse struct {
 	Behavior string // "allow" or "deny"
-	Message  string // optional deny reason
 }
 
-// Global registry maps control_request request_id → response channel.
+// Global registry: requestID → channel. Key is our own generated ID (not Claude's).
 var choiceRegistry sync.Map // map[string] chan choiceResponse
 
-// SubmitChoice resolves a pending permission prompt. Called from the HTTP handler
-// when the mobile user taps Allow or Deny.
+// SubmitChoice resolves a pending permission prompt. Called from /api/choice HTTP handler.
 func SubmitChoice(requestID string, behavior string) bool {
 	ch, ok := choiceRegistry.Load(requestID)
 	if !ok {
@@ -349,54 +349,34 @@ func SubmitChoice(requestID string, behavior string) bool {
 	return true
 }
 
-// handleControlRequest forwards a Claude permission prompt to the phone,
-// waits for the user's choice, and writes the response back to Claude's stdin.
-func (s *Session) handleControlRequest(evt ParseEvent) {
-	// Forward to phone
+// requestPermission emits a choice_request to the phone and waits for user response.
+// Returns true if allowed, false if denied or timed out.
+func (s *Session) requestPermission(toolID, toolName string, input json.RawMessage) bool {
+	requestID := toolID // reuse tool_use ID as request ID for correlation
+	if len(requestID) > 40 {
+		requestID = requestID[:40]
+	}
+
 	s.emitEvent("choice_request", map[string]any{
-		"requestId":      evt.RequestID,
-		"toolName":       evt.ToolName,
-		"toolUseId":      evt.ToolID,
-		"input":          evt.ToolInput,
-		"decisionReason": evt.DecisionReason,
+		"requestId": requestID,
+		"toolName":  toolName,
+		"toolUseId": toolID,
+		"input":     input,
 	})
 
-	// Wait for response
 	ch := make(chan choiceResponse, 1)
-	choiceRegistry.Store(evt.RequestID, ch)
-	defer choiceRegistry.Delete(evt.RequestID)
+	choiceRegistry.Store(requestID, ch)
+	defer choiceRegistry.Delete(requestID)
+
+	log.Printf("[claude] permission prompt: %s (%s)", toolName, requestID[:min(12, len(requestID))])
 
 	select {
 	case resp := <-ch:
-		log.Printf("[claude] permission: %s → %s", evt.RequestID[:min(12, len(evt.RequestID))], resp.Behavior)
-		s.writeControlResponse(evt.RequestID, resp.Behavior)
-	case <-time.After(120 * time.Second):
-		log.Printf("[claude] permission: %s → timeout (auto-deny)", evt.RequestID[:min(12, len(evt.RequestID))])
-		s.writeControlResponse(evt.RequestID, "deny")
-	}
-}
-
-// writeControlResponse sends a control_response message to Claude's stdin.
-func (s *Session) writeControlResponse(requestID string, behavior string) {
-	resp := map[string]any{
-		"type": "control_response",
-		"response": map[string]any{
-			"subtype":    "success",
-			"request_id": requestID,
-			"response": map[string]any{
-				"behavior":     behavior,
-				"updatedInput": map[string]any{},
-			},
-		},
-	}
-	if behavior == "deny" {
-		resp["response"].(map[string]any)["response"].(map[string]any)["message"] = "User denied"
-	}
-	data, _ := json.Marshal(resp)
-	if s.stdin != nil {
-		if _, err := s.stdin.Write(append(data, '\n')); err != nil {
-			log.Printf("[claude] writeControlResponse error: %v", err)
-		}
+		log.Printf("[claude] permission: %s → %s", requestID[:min(12, len(requestID))], resp.Behavior)
+		return resp.Behavior == "allow"
+	case <-time.After(60 * time.Second):
+		log.Printf("[claude] permission: %s → timeout (auto-deny)", requestID[:min(12, len(requestID))])
+		return false
 	}
 }
 
@@ -407,6 +387,23 @@ func (s *Session) executeAndRespond(toolID, toolName string, input json.RawMessa
 	var params map[string]interface{}
 	if err := json.Unmarshal(input, &params); err != nil {
 		params = map[string]interface{}{}
+	}
+
+	// Check permission for dangerous tools
+	if needsPermission(toolName) {
+		if !s.requestPermission(toolID, toolName, input) {
+			// Denied — send error result back to Claude
+			errMsg := fmt.Sprintf("Permission denied for %s", toolName)
+			log.Printf("[claude] tool %s(%s) → denied by user", toolName, toolID[:min(8, len(toolID))])
+			s.sendToolResult(toolID, errMsg, true)
+			s.emitEvent("tool_result", map[string]any{
+				"id":      toolID,
+				"name":    toolName,
+				"output":  errMsg,
+				"isError": true,
+			})
+			return
+		}
 	}
 
 	output, isError := execTool(toolName, params)

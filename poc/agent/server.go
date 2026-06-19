@@ -413,8 +413,14 @@ func (s *sseWriter) writeEvent(event string, data json.RawMessage) error {
 	defer s.mu.Unlock()
 
 	// SSE format: "event: <type>\ndata: <json>\n\n"
-	_, err := fmt.Fprintf(s.w, "event: %s\ndata: %s\n\n", event, string(data))
-	if err != nil {
+	// Use explicit []byte write to avoid any Fprintf encoding quirks.
+	buf := make([]byte, 0, len(event)+len(data)+20)
+	buf = append(buf, "event: "...)
+	buf = append(buf, event...)
+	buf = append(buf, "\ndata: "...)
+	buf = append(buf, data...)
+	buf = append(buf, "\n\n"...)
+	if _, err := s.w.Write(buf); err != nil {
 		return err
 	}
 	s.flusher.Flush()

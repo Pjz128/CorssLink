@@ -611,59 +611,34 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildQuickActions(bool canSend) {
     final cs = Theme.of(context).colorScheme;
-    // Only show when connected and chat is active (not welcome screen)
     if (_bubbles.isEmpty) return const SizedBox.shrink();
 
-    final actions = [
-      _QuickAction(
-        icon: Icons.clear_all,
-        label: '清除',
-        tooltip: '清除会话上下文',
-        onTap: canSend ? () => _quickCommand('/clear') : null,
-      ),
-      _QuickAction(
-        icon: Icons.compress,
-        label: '压缩',
-        tooltip: '压缩上下文（/compact）',
-        onTap: canSend ? () => _quickCommand('/compact') : null,
-      ),
-      _QuickAction(
-        icon: Icons.model_training,
-        label: _selectedModel.isNotEmpty ? _selectedModel : '模型',
-        tooltip: '切换模型: $_selectedModel',
-        onTap: canSend ? _showModelSheet : null,
-      ),
-      _QuickAction(
-        icon: Icons.stop_circle_outlined,
-        label: '停止',
-        tooltip: '停止当前生成',
-        onTap: canSend ? _stopGenerating : null,
-      ),
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
-        children: actions.map((a) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: ActionChip(
-              avatar: Icon(a.icon, size: 16, color: a.onTap != null ? cs.primary : cs.onSurface.withAlpha(100)),
-              label: Text(
-                a.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: a.onTap != null ? cs.onSurface : cs.onSurface.withAlpha(100),
-                ),
-              ),
-              onPressed: a.onTap,
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              side: BorderSide(color: cs.outlineVariant.withAlpha(80)),
-            ),
-          );
-        }).toList(),
+        children: [
+          _MiniIconBtn(Icons.clear_all,     '清除', () => _quickCommand('/clear'), canSend, cs),
+          _MiniIconBtn(Icons.compress,       '压缩', () => _quickCommand('/compact'), canSend, cs),
+          _MiniIconBtn(Icons.model_training, _selectedModel, _showModelSheet, canSend, cs),
+          const Spacer(),
+          _MiniIconBtn(Icons.stop_circle_outlined, '停止', canSend ? _stopGenerating : null, canSend, cs),
+        ],
+      ),
+    );
+  }
+
+  Widget _MiniIconBtn(IconData icon, String tooltip, VoidCallback? onTap, bool enabled, ColorScheme cs) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(4),
+        onTap: enabled ? onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          child: Icon(icon, size: 18,
+            color: enabled ? cs.onSurface.withAlpha(180) : cs.onSurface.withAlpha(60)),
+        ),
       ),
     );
   }
