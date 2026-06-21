@@ -70,3 +70,4 @@ qr_code.txt
 release/
 .claude/
 poc/.claude/
+dist/android/

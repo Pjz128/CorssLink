@@ -17,6 +17,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -48,20 +49,30 @@ type relayMsg struct {
 	Method       string          `json:"method,omitempty"`
 	Path         string          `json:"path,omitempty"`
 	Headers      json.RawMessage `json:"headers,omitempty"`
-	Body         string          `json:"body,omitempty"`  // base64-encoded for req/res
-	Data         string          `json:"data,omitempty"`  // base64-encoded for res-chunk
+	Body         string          `json:"body,omitempty"`    // base64-encoded for req/res
+	Data         string          `json:"data,omitempty"`    // base64-encoded for res-chunk
 	Status       int             `json:"status,omitempty"`
 	Message      string          `json:"message,omitempty"`
+	Metadata     *relayAgentMeta `json:"metadata,omitempty"`   // agent capabilities
+	Visibility   string          `json:"visibility,omitempty"` // "public"|"private"
+}
+
+// relayAgentMeta mirrors the relay's AgentMeta for JSON serialization.
+type relayAgentMeta struct {
+	Type         string   `json:"type"`
+	Label        string   `json:"label"`
+	Capabilities []string `json:"capabilities"`
 }
 
 // ---- RelayConfig ----
 
 // RelayConfig holds parameters for connecting to the cloud relay.
 type RelayConfig struct {
-	RelayAddr string // WebSocket URL, e.g. "ws://45.197.144.16:18080/agent"
-	PeerID    string
-	PairToken string
-	Server    *Server // the agent HTTP server (provides Handler())
+	RelayAddr   string // WebSocket URL, e.g. "ws://crosslink.cyou:18080/agent"
+	PeerID      string
+	PairToken   string
+	DeployToken string // one-time deploy token for auto-claim
+	Server      *Server // the agent HTTP server (provides Handler())
 }
 
 // ---- RelayBridge ----
@@ -136,6 +147,9 @@ func (b *RelayBridge) connectAndServe(ctx context.Context) error {
 	q := u.Query()
 	q.Set("peer", b.cfg.PeerID)
 	q.Set("token", b.cfg.PairToken)
+	if b.cfg.DeployToken != "" {
+		q.Set("deploy", b.cfg.DeployToken)
+	}
 	u.RawQuery = q.Encode()
 
 	log.Printf("[relay-bridge] connecting to %s", u.String())
@@ -146,16 +160,33 @@ func (b *RelayBridge) connectAndServe(ctx context.Context) error {
 	b.conn = conn
 	b.reconnectDelay = 1 * time.Second // reset backoff on successful connection
 
-	// Send registration
+	// Collect agent metadata from plugin registry
+	var meta *relayAgentMeta
+	if m := b.cfg.Server.CollectMetadata(); m != nil {
+		meta = &relayAgentMeta{
+			Type:         m.Type,
+			Label:        m.Label,
+			Capabilities: m.Capabilities,
+		}
+	}
+	// Read default visibility from env
+	visibility := os.Getenv("AGENT_VISIBILITY")
+	if visibility == "" {
+		visibility = "private"
+	}
+
+	// Send registration with metadata
 	if err := b.writeMsg(relayMsg{
-		Type:      relayMsgRegister,
-		PeerID:    b.cfg.PeerID,
-		PairToken: b.cfg.PairToken,
+		Type:       relayMsgRegister,
+		PeerID:     b.cfg.PeerID,
+		PairToken:  b.cfg.PairToken,
+		Metadata:   meta,
+		Visibility: visibility,
 	}); err != nil {
 		conn.Close()
 		return fmt.Errorf("register: %w", err)
 	}
-	log.Printf("[relay-bridge] registered as %s", b.cfg.PeerID)
+	log.Printf("[relay-bridge] registered as %s (visibility=%s)", b.cfg.PeerID, visibility)
 
 	// Re-bind any existing session tokens
 	b.sessionTokensMu.Lock()

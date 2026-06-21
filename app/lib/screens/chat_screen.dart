@@ -20,12 +20,17 @@ class ChatScreen extends StatefulWidget {
   final SettingsService settings;
   final String? sessionId;
   final String? preSelectedModel;
+  final String? claudeSessionName;
+  final List<Map<String, dynamic>>? preloadedMessages;
+
   const ChatScreen({
     super.key,
     required this.device,
     required this.settings,
     this.sessionId,
     this.preSelectedModel,
+    this.claudeSessionName,
+    this.preloadedMessages,
   });
 
   @override
@@ -56,6 +61,9 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, _ToolCallState> _toolCalls = {};
   // Permission/choice request state
   final Map<String, ChoiceRequestEvent> _choiceRequests = {};
+  final Set<String> _trustedTools = {};
+  bool _permSheetShowing = false;
+  bool _responseComplete = false;
 
   ChatHistoryService? _history;
   late Session _session;
@@ -80,7 +88,17 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     await _history!.save(_session);
 
-    if (_session.messages.isNotEmpty && mounted) {
+    if (widget.preloadedMessages != null && widget.preloadedMessages!.isNotEmpty) {
+      setState(() {
+        for (final m in widget.preloadedMessages!) {
+          final role = m['role'] as String? ?? 'user';
+          final content = m['content'] as String? ?? '';
+          if (role == 'user' || role == 'assistant') {
+            _bubbles.add(_ChatBubble(role: role, content: content, time: DateTime.now()));
+          }
+        }
+      });
+    } else if (_session.messages.isNotEmpty && mounted) {
       setState(() {
         for (final r in _session.messages) {
           _bubbles.add(_ChatBubble(
@@ -222,8 +240,8 @@ class _ChatScreenState extends State<ChatScreen> {
               _streamingBubble ??= _ChatBubble(role: 'assistant', content: '', time: DateTime.now());
               _streamingBubble!.content += token;
             });
+            _scrollToBottom();
           }
-          _scrollToBottom();
           break;
 
         case MsgType.chatDone:
@@ -238,6 +256,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 _streamingBubble = null;
               }
               _finalizeThinkingBubble();
+              _responseComplete = true;
             });
           }
           _saveHistory();
@@ -300,15 +319,18 @@ class _ChatScreenState extends State<ChatScreen> {
           if (mounted && token.isNotEmpty) {
             setState(() {
               _thinkingActive = true;
-              // Append to last thinking bubble or create new one
-              if (_bubbles.isNotEmpty && _bubbles.last.role == 'thinking') {
-                _bubbles.last.content += token;
+              // Find the most recent thinking bubble (may be before tool cards)
+              int lastIdx = -1;
+              for (int i = _bubbles.length - 1; i >= 0; i--) {
+                if (_bubbles[i].role == 'thinking') { lastIdx = i; break; }
+              }
+              if (lastIdx >= 0) {
+                _bubbles[lastIdx].content += token;
               } else {
                 _bubbles.add(_ChatBubble(role: 'thinking', content: token, time: DateTime.now(), isStreaming: true));
               }
             });
           }
-          _scrollToBottom();
           break;
 
         case MsgType.toolUse:
@@ -321,7 +343,6 @@ class _ChatScreenState extends State<ChatScreen> {
               _bubbles.add(_ChatBubble(role: 'tool_call', content: tId, time: DateTime.now(), toolId: tId));
             });
           }
-          _scrollToBottom();
           break;
 
         case MsgType.toolInput:
@@ -341,7 +362,7 @@ class _ChatScreenState extends State<ChatScreen> {
             setState(() {
               _toolCalls[tId]?.status = isError ? _ToolStatus.error : _ToolStatus.done;
               _toolCalls[tId]?.output = output;
-              _bubbles.add(_ChatBubble(role: 'tool_result', content: output, time: DateTime.now(), toolId: tId));
+              // Result shown inline in ToolCallCard — no separate bubble
             });
           }
           break;
@@ -349,15 +370,12 @@ class _ChatScreenState extends State<ChatScreen> {
         case MsgType.choiceRequest:
           final evt = ChoiceRequestEvent.fromJson(wm.body);
           if (mounted && evt.requestId.isNotEmpty) {
-            setState(() {
-              _choiceRequests[evt.requestId] = evt;
-              _bubbles.add(_ChatBubble(
-                role: 'choice_request',
-                content: evt.requestId,
-                time: DateTime.now(),
-              ));
-            });
-            _scrollToBottom();
+            if (_trustedTools.contains(evt.toolName)) {
+              _handleChoice(evt.requestId, 'allow');
+            } else {
+              setState(() => _choiceRequests[evt.requestId] = evt);
+              _showPermissionSheet();
+            }
           }
           break;
 
@@ -453,6 +471,124 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _showPermissionSheet() {
+    if (_choiceRequests.isEmpty) return;
+    if (_permSheetShowing) {
+      // Sheet already showing — rebuild will pick up new requests via chat setState
+      return;
+    }
+    _permSheetShowing = true;
+    _buildPermissionSheet();
+  }
+
+  void _buildPermissionSheet() {
+    if (!_permSheetShowing) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1A1D28),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        if (!_permSheetShowing) { Navigator.pop(ctx); return const SizedBox.shrink(); }
+        return StatefulBuilder(builder: (ctx, setSheetState) {
+          final requests = _choiceRequests.values.toList();
+          if (requests.isEmpty) {
+            _permSheetShowing = false;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+            });
+            return const SizedBox.shrink();
+          }
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.security, size: 18, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Text('权限请求 (${requests.length})', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () {
+                      for (final r in requests) { _handleChoice(r.requestId, 'allow'); }
+                      setSheetState(() => _choiceRequests.clear());
+                      _permSheetShowing = false;
+                    },
+                    child: const Text('全部允许', style: TextStyle(color: Colors.green, fontSize: 12)),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.45),
+                  child: ListView.builder(
+                    shrinkWrap: true, itemCount: requests.length,
+                    itemBuilder: (_, i) {
+                      final evt = requests[i];
+                      final color = evt.toolName == 'Bash' ? Colors.orange : evt.toolName == 'Write' ? Colors.blue : Colors.purple;
+                      bool trustChecked = _trustedTools.contains(evt.toolName);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: const Color(0xFF0E1018), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withAlpha(80))),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Icon(evt.toolName == 'Bash' ? Icons.terminal : Icons.edit, size: 16, color: color),
+                            const SizedBox(width: 6),
+                            Text(evt.toolName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+                          ]),
+                          if (evt.input != null && evt.input!.isNotEmpty)
+                            Container(
+                              width: double.infinity, margin: const EdgeInsets.only(top: 6), padding: const EdgeInsets.all(8),
+                              constraints: const BoxConstraints(maxHeight: 100),
+                              decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(6)),
+                              child: SingleChildScrollView(
+                                child: Text(evt.input.toString(), style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Color(0xFF90A4AE))),
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+                          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                            SizedBox(height: 24, width: 24, child: Checkbox(
+                              value: trustChecked, activeColor: Colors.green.shade400, side: const BorderSide(color: Colors.white38),
+                              onChanged: (v) => setSheetState(() { if (v == true) _trustedTools.add(evt.toolName); else _trustedTools.remove(evt.toolName); }),
+                            )),
+                            const SizedBox(width: 4),
+                            GestureDetector(
+                              onTap: () => setSheetState(() { if (_trustedTools.contains(evt.toolName)) _trustedTools.remove(evt.toolName); else _trustedTools.add(evt.toolName); }),
+                              child: const Text('信任', style: TextStyle(fontSize: 11, color: Colors.white38)),
+                            ),
+                            const Spacer(),
+                            TextButton(onPressed: () { _handleChoice(evt.requestId, 'abort'); setSheetState(() => _choiceRequests.remove(evt.requestId)); }, child: const Text('拒绝', style: TextStyle(color: Colors.red, fontSize: 12))),
+                            const SizedBox(width: 4),
+                            TextButton(onPressed: () { _handleChoice(evt.requestId, 'deny'); setSheetState(() => _choiceRequests.remove(evt.requestId)); }, child: Text('暂停', style: TextStyle(color: Colors.orange.shade300, fontSize: 12))),
+                            const SizedBox(width: 4),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6)),
+                              onPressed: () { _handleChoice(evt.requestId, 'allow'); setSheetState(() => _choiceRequests.remove(evt.requestId)); },
+                              child: const Text('允许', style: TextStyle(fontSize: 12)),
+                            ),
+                          ]),
+                        ]),
+                      );
+                    },
+                  ),
+                ),
+              ]),
+            ),
+          );
+        });
+      },
+    ).then((_) {
+      _permSheetShowing = false;
+      // If more requests arrived during dismiss, show again
+      if (_choiceRequests.isNotEmpty && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _showPermissionSheet());
+      }
+    });
+  }
+
   void _copyMessage(String text) {
     HapticFeedback.selectionClick();
     Clipboard.setData(ClipboardData(text: text));
@@ -475,12 +611,14 @@ class _ChatScreenState extends State<ChatScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                widget.device.deviceName.isNotEmpty ? widget.device.deviceName : widget.device.agentId,
-                style: const TextStyle(fontSize: 16),
+                widget.claudeSessionName ?? (widget.device.deviceName.isNotEmpty ? widget.device.deviceName : widget.device.agentId),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                _selectedModel.isNotEmpty ? _selectedModel : '选择模型',
+                widget.claudeSessionName != null
+                    ? 'Claude · ${_selectedModel.isNotEmpty ? _selectedModel : "sonnet"}'
+                    : (_selectedModel.isNotEmpty ? _selectedModel : '选择模型'),
                 style: TextStyle(fontSize: 12, color: cs.onSurface.withAlpha(150)),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -524,8 +662,8 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // Agent picker
-          if (_availableAgents.isNotEmpty)
+          // Agent picker — hidden in Claude session (agent is fixed)
+          if (_availableAgents.isNotEmpty && widget.claudeSessionName == null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: AgentPicker(
@@ -575,6 +713,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       choiceRequests: _choiceRequests,
                       onChoice: _handleChoice,
                       isStreamingBubble: bubbleIsStreaming,
+                      responseComplete: _responseComplete,
                     ),
                   );
                 },
@@ -620,7 +759,8 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           _MiniIconBtn(Icons.clear_all,     '清除', () => _quickCommand('/clear'), canSend, cs),
           _MiniIconBtn(Icons.compress,       '压缩', () => _quickCommand('/compact'), canSend, cs),
-          _MiniIconBtn(Icons.model_training, _selectedModel, _showModelSheet, canSend, cs),
+          if (widget.claudeSessionName == null)
+            _MiniIconBtn(Icons.model_training, _selectedModel, _showModelSheet, canSend, cs),
           const Spacer(),
           _MiniIconBtn(Icons.stop_circle_outlined, '停止', canSend ? _stopGenerating : null, canSend, cs),
         ],
@@ -872,6 +1012,7 @@ class _BubbleWidget extends StatelessWidget {
   final Map<String, ChoiceRequestEvent>? choiceRequests;
   final Future<bool> Function(String requestId, String behavior)? onChoice;
   final bool isStreamingBubble;
+  final bool responseComplete;
   const _BubbleWidget({
     required this.bubble,
     required this.onCopy,
@@ -881,6 +1022,7 @@ class _BubbleWidget extends StatelessWidget {
     this.choiceRequests,
     this.onChoice,
     this.isStreamingBubble = false,
+    this.responseComplete = false,
   });
 
   @override
@@ -922,6 +1064,7 @@ class _BubbleWidget extends StatelessWidget {
       return ThinkingBlock(
         content: bubble.content,
         isStreaming: isStreamingBubble,
+        collapsed: responseComplete,
       );
     }
 
@@ -935,6 +1078,7 @@ class _BubbleWidget extends StatelessWidget {
         input: ts?.input is Map ? Map<String, dynamic>.from(ts!.input as Map) : null,
         resultSummary: ts?.output,
         isError: ts?.status == _ToolStatus.error,
+        collapsed: responseComplete,
       );
     }
 
@@ -947,6 +1091,7 @@ class _BubbleWidget extends StatelessWidget {
         isError: ts?.status == _ToolStatus.error,
         toolId: tId,
         toolName: ts?.name,
+        collapsed: responseComplete,
       );
     }
 

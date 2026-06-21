@@ -41,6 +41,7 @@ dependencies:
   shared_preferences: ^2.3.0
   flutter_markdown: ^0.7.7
   http: ^1.2.0
+  flutter_svg: ^2.0.10
 
 dev_dependencies:
   flutter_test:
@@ -63,6 +64,12 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/brand/crosslink_logo.svg
+    - assets/brand/empty_state_no_device.svg
+    - assets/brand/empty_state_no_session.svg
+    - assets/brand/scan_frame.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

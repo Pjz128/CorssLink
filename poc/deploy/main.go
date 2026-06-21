@@ -23,7 +23,7 @@ func main() {
 	pass := os.Getenv("CL_PASS")
 
 	if host == "" {
-		host = "45.197.144.16:22"
+		host = "crosslink.cyou:22"
 	}
 	if user == "" {
 		user = "root"

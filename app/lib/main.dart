@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/main_shell.dart';
 import 'services/settings_service.dart';
+import 'theme/crosslink_theme.dart';
 
 void main() {
   runApp(const CrossLinkApp());
@@ -28,13 +29,7 @@ class _CrossLinkAppState extends State<CrossLinkApp> {
         return MaterialApp(
           title: 'CrossLink',
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: themeColor,
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-          ),
+          theme: CrossLinkTheme.darkTheme(themeColor),
           home: const MainShell(),
         );
       },

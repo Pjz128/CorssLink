@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200" width="240" height="200">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="100%" stop-color="#2979FF"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 终端窗口 -->
+  <rect x="60" y="40" width="120" height="90" rx="14" fill="#1A1D28" stroke="#2A2E3D" stroke-width="1.5"/>
+  <rect x="60" y="40" width="120" height="22" rx="14" fill="#222636"/>
+  <rect x="60" y="54" width="120" height="8" fill="#222636"/>
+  <circle cx="74" cy="51" r="4" fill="#FF5252"/>
+  <circle cx="88" cy="51" r="4" fill="#FFB300"/>
+  <circle cx="102" cy="51" r="4" fill="#00E676"/>
+
+  <!-- prompt -->
+  <text x="76" y="94" font-family="monospace" font-size="22" font-weight="600" fill="#00E5FF" filter="url(#glow)">&gt;_</text>
+
+  <!-- 虚线连接 -->
+  <line x1="150" y1="100" x2="190" y2="140" stroke="url(#g1)" stroke-width="3" stroke-linecap="round" stroke-dasharray="6 6" filter="url(#glow)"/>
+
+  <!-- 远端设备/节点 -->
+  <rect x="170" y="125" width="42" height="42" rx="12" fill="#1A1D28" stroke="url(#g1)" stroke-width="2" filter="url(#glow)"/>
+  <rect x="180" y="138" width="22" height="16" rx="4" fill="#00E5FF" opacity="0.25"/>
+  <circle cx="191" cy="146" r="3" fill="#00E5FF"/>
+
+  <!-- 提示文字位置占位 -->
+</svg>

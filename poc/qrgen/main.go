@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	uri := "crosslink://pair?%7B%22v%22%3A1%2C%22pk%22%3A%22qC4X7tOkCJ4dM6DYMOQU6EzpYDDaj_yLIrSM3eXbYQY%3D%22%2C%22srv%22%3A%22ws%3A%2F%2F45.197.144.16%3A18080%22%2C%22pid%22%3A%22agent-ollama-pc%22%7D"
+	uri := "crosslink://pair?%7B%22v%22%3A1%2C%22pk%22%3A%22qC4X7tOkCJ4dM6DYMOQU6EzpYDDaj_yLIrSM3eXbYQY%3D%22%2C%22srv%22%3A%22ws%3A%2F%2Fcrosslink.cyou%3A18080%22%2C%22pid%22%3A%22agent-ollama-pc%22%7D"
 
 	qr, err := qrcode.New(uri, qrcode.Medium)
 	if err != nil {

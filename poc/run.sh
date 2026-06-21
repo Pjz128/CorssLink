@@ -1,22 +1,17 @@
 #!/usr/bin/env bash
-# CrossLink POC: WebRTC connectivity test
+# CrossLink POC: WebRTC connectivity test + Build
 # Requires: Go 1.22+ installed
 # Usage:
 #   ./run.sh signal    Start the signaling server
 #   ./run.sh agent     Start the home PC agent
 #   ./run.sh client    Start the mobile client
+#   ./run.sh build     Build and test all packages
 #   ./run.sh all       Run all three in separate terminals (recommended)
 #
 # Recommended test flow:
 #   1. Terminal 1: ./run.sh signal
 #   2. Terminal 2: ./run.sh agent
 #   3. Terminal 3: ./run.sh client
-#
-# Expected output:
-#   - Signal server shows peer registrations and message routing
-#   - Agent shows "data channel opened" after client connects
-#   - Client shows ping-pong RTT measurements (should be < 50ms on LAN)
-#   - ICE state progression: checking -> connected
 
 set -euo pipefail
 
@@ -45,6 +40,15 @@ case "${1:-all}" in
 		echo "[poc] starting client (mobile app)"
 		go run ./client/main.go
 		;;
+	build)
+		echo "=== BUILD ==="
+		go build ./... 2>&1
+		echo "=== VET ==="
+		go vet ./... 2>&1
+		echo "=== TEST ==="
+		go test ./pairing/ ./ollama/ -v 2>&1
+		echo "=== DONE ==="
+		;;
 	all)
 		echo "[poc] starting all three components..."
 		echo ""
@@ -54,12 +58,6 @@ case "${1:-all}" in
 		echo "  ║  Signal server  : ws://localhost:8080             ║"
 		echo "  ║  Agent (home PC): agent-home-pc                   ║"
 		echo "  ║  Client (mobile): client-mobile                   ║"
-		echo "  ║                                                   ║"
-		echo "  ║  Expected:                                        ║"
-		echo "  ║  - Agent & Client register with signal            ║"
-		echo "  ║  - Client sends WebRTC offer to agent             ║"
-		echo "  ║  - DataChannel established                        ║"
-		echo "  ║  - Ping/pong with RTT < 50ms (local)              ║"
 		echo "  ╚═══════════════════════════════════════════════════╝"
 		echo ""
 
@@ -82,7 +80,7 @@ case "${1:-all}" in
 		exit $CLIENT_EXIT
 		;;
 	*)
-		echo "Usage: $0 {signal|agent|client|all}"
+		echo "Usage: $0 {signal|agent|client|build|all}"
 		exit 1
 		;;
 esac

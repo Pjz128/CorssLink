@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/discover.dart';
 import '../models/pairing.dart';
 import '../models/protocol.dart';
 
@@ -85,7 +86,8 @@ class HttpService {
   }
 
   /// POST /api/choice → respond to a permission prompt.
-  Future<bool> sendChoice(String requestId, String behavior) async {
+  /// [trustSession] if true, the server adds this tool to the session trust whitelist.
+  Future<bool> sendChoice(String requestId, String behavior, {bool trustSession = false}) async {
     final uri = Uri.parse('$baseUrl/api/choice');
     try {
       final response = await http.post(
@@ -97,6 +99,7 @@ class HttpService {
         body: jsonEncode({
           'requestId': requestId,
           'behavior': behavior,
+          'trustSession': trustSession,
         }),
       );
       return response.statusCode == 200;
@@ -114,6 +117,127 @@ class HttpService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Claude session management (plugin-specific, not coupled to other agents).
+
+  Future<List<Map<String, dynamic>>> fetchClaudeSessions() async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/claude/sessions');
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> createClaudeSession(String name) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/claude/sessions');
+      final response = await http.post(uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'name': name}),
+      );
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> activateClaudeSession(String id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/claude/sessions/$id');
+      final response = await http.post(uri);
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// GET /api/claude/sessions/{id}/messages → 获取会话历史消息。
+  Future<List<Map<String, dynamic>>> fetchClaudeSessionMessages(String sessionId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/claude/sessions/$sessionId/messages');
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return (data['messages'] as List?)
+                ?.map((m) => m as Map<String, dynamic>)
+                .toList() ??
+            [];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> deleteClaudeSession(String id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/claude/sessions/$id');
+      final response = await http.delete(uri);
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 发现页 API：获取可发现的在线 Agent 列表。
+  /// GET /api/discover/agents
+  Future<List<DiscoveredAgent>> fetchDiscoverAgents() async {
+    final uri = Uri.parse('$baseUrl/api/discover/agents');
+    try {
+      final response = await http.get(uri, headers: {
+        'Authorization': 'Bearer $sessionToken',
+      });
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return (data['agents'] as List?)
+                ?.map(
+                    (a) => DiscoveredAgent.fromJson(a as Map<String, dynamic>))
+                .toList() ??
+            [];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// 发现页 API：发起建联申请。
+  /// POST /api/discover/connect
+  Future<Map<String, dynamic>> requestConnect(String peerID) async {
+    final uri = Uri.parse('$baseUrl/api/discover/connect');
+    try {
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $sessionToken',
+        },
+        body: jsonEncode({'peerID': peerID}),
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  /// 发现页 API：查询建联申请状态。
+  /// GET /api/discover/requests
+  Future<List<ConnectionRequest>> fetchConnectionRequests() async {
+    final uri = Uri.parse('$baseUrl/api/discover/requests');
+    try {
+      final response = await http.get(uri, headers: {
+        'Authorization': 'Bearer $sessionToken',
+      });
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return (data['outgoing'] as List?)
+                ?.map((r) =>
+                    ConnectionRequest.fromJson(r as Map<String, dynamic>))
+                .toList() ??
+            [];
+      }
+    } catch (_) {}
+    return [];
   }
 
   void dispose() {

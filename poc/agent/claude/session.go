@@ -180,13 +180,17 @@ func (s *Session) Close() error {
 func (s *Session) start() error {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
-	s.cmd = exec.CommandContext(s.ctx, s.cfg.BinaryPath,
+	args := []string{
 		"--input-format", "stream-json",
 		"--output-format", "stream-json",
 		"--verbose",
 		"--include-partial-messages",
 		"--model", s.model,
-	)
+	}
+	// Append extra args (e.g. --resume <session-id>)
+	args = append(args, s.cfg.Args...)
+
+	s.cmd = exec.CommandContext(s.ctx, s.cfg.BinaryPath, args...)
 
 	var err error
 	s.stdin, err = s.cmd.StdinPipe()
@@ -339,6 +343,17 @@ type choiceResponse struct {
 // Global registry: requestID → channel. Key is our own generated ID (not Claude's).
 var choiceRegistry sync.Map // map[string] chan choiceResponse
 
+// ClearChoiceRegistry closes all pending permission channels. Called on session switch.
+func ClearChoiceRegistry() {
+	choiceRegistry.Range(func(key, value interface{}) bool {
+		if ch, ok := value.(chan choiceResponse); ok {
+			close(ch)
+		}
+		choiceRegistry.Delete(key)
+		return true
+	})
+}
+
 // SubmitChoice resolves a pending permission prompt. Called from /api/choice HTTP handler.
 func SubmitChoice(requestID string, behavior string) bool {
 	ch, ok := choiceRegistry.Load(requestID)
@@ -368,15 +383,36 @@ func (s *Session) requestPermission(toolID, toolName string, input json.RawMessa
 	choiceRegistry.Store(requestID, ch)
 	defer choiceRegistry.Delete(requestID)
 
-	log.Printf("[claude] permission prompt: %s (%s)", toolName, requestID[:min(12, len(requestID))])
+	log.Printf("[claude] permission prompt: %s (%s) — waiting indefinitely", toolName, requestID[:min(12, len(requestID))])
 
-	select {
-	case resp := <-ch:
-		log.Printf("[claude] permission: %s → %s", requestID[:min(12, len(requestID))], resp.Behavior)
-		return resp.Behavior == "allow"
-	case <-time.After(60 * time.Second):
-		log.Printf("[claude] permission: %s → timeout (auto-deny)", requestID[:min(12, len(requestID))])
-		return false
+	// Wait for user response, context cancellation, or timeout.
+	for {
+		select {
+		case <-s.ctx.Done():
+			log.Printf("[claude] permission: %s → CANCELLED (session closed)", requestID[:min(12, len(requestID))])
+			return false
+		case <-time.After(60 * time.Second):
+			log.Printf("[claude] permission: %s → TIMEOUT (auto-abort)", requestID[:min(12, len(requestID))])
+			return false
+		case resp := <-ch:
+			switch resp.Behavior {
+			case "allow":
+				log.Printf("[claude] permission: %s → ALLOW", requestID[:min(12, len(requestID))])
+				return true
+			case "abort":
+				log.Printf("[claude] permission: %s → ABORT (force-deny)", requestID[:min(12, len(requestID))])
+				return false
+			case "deny":
+				// Pause: Claude keeps waiting. Replace the consumed channel.
+				log.Printf("[claude] permission: %s → PAUSE", requestID[:min(12, len(requestID))])
+				newCh := make(chan choiceResponse, 1)
+				choiceRegistry.Store(requestID, newCh)
+				ch = newCh
+				// Continue waiting for allow/abort
+			default:
+				log.Printf("[claude] permission: %s → unknown behavior %q", requestID[:min(12, len(requestID))], resp.Behavior)
+			}
+		}
 	}
 }
 

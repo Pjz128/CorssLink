@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200" width="240" height="200">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2979FF"/>
+      <stop offset="100%" stop-color="#7C4DFF"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 对话气泡堆叠 -->
+  <rect x="70" y="120" width="110" height="44" rx="14" fill="#1A1D28" stroke="#2A2E3D" stroke-width="1.5"/>
+  <rect x="86" y="134" width="78" height="8" rx="4" fill="#FFFFFF" opacity="0.2"/>
+
+  <rect x="90" y="70" width="100" height="40" rx="14" fill="#2979FF" opacity="0.18" stroke="#2979FF" stroke-width="1.5"/>
+  <rect x="106" y="86" width="68" height="8" rx="4" fill="#82B1FF" opacity="0.6"/>
+
+  <!-- 链路节点 -->
+  <circle cx="60" cy="142" r="12" fill="#0A0B0F" stroke="url(#g1)" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="60" cy="142" r="4" fill="#2979FF"/>
+
+  <circle cx="190" cy="90" r="12" fill="#0A0B0F" stroke="url(#g1)" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="190" cy="90" r="4" fill="#7C4DFF"/>
+
+  <!-- 连接光轨 -->
+  <path d="M 72 138 Q 120 160, 178 100" fill="none" stroke="url(#g1)" stroke-width="3" stroke-linecap="round" opacity="0.8" filter="url(#glow)"/>
+
+  <!-- 小光点 -->
+  <circle cx="130" cy="128" r="4" fill="#00E5FF" filter="url(#glow)"/>
+</svg>

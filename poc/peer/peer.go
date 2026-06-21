@@ -20,7 +20,7 @@ type Config struct {
 	SignalAddr      string
 	OnMessage       func(msg string) // Called for DataChannel messages
 	OnSignalMessage func(msg string) // Called for non-WebRTC signal messages (pairing, etc.)
-	TURNServer      string // e.g. "turn:45.197.144.16:3478"
+	TURNServer      string // e.g. "turn:crosslink.cyou:3478"
 	TURNUser        string
 	TURNPass        string
 }

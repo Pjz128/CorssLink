@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/pairing.dart';
 import '../services/chat_history_service.dart';
 import '../services/device_store.dart';
 import '../services/settings_service.dart';
+import '../theme/crosslink_theme.dart';
 import '../widgets/animated_messenger.dart';
 import '../widgets/shimmer_loading.dart';
+import 'agent_select_screen.dart';
 import 'chat_screen.dart';
 import 'scan_screen.dart';
 
@@ -89,6 +92,7 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: CrossLinkTheme.deepSpace,
       appBar: AppBar(
         toolbarHeight: 0,
         backgroundColor: Colors.transparent,
@@ -107,7 +111,7 @@ class HomeScreenState extends State<HomeScreen> {
 
   Widget _buildLoading() {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(CrossLinkTheme.spaceLg),
       children: const [
         SizedBox(height: 40),
         ShimmerCard(),
@@ -120,27 +124,27 @@ class HomeScreenState extends State<HomeScreen> {
   Widget _buildEmpty() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(CrossLinkTheme.spaceXxl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const AnimatedMessenger(
-              state: MessengerState.offline,
-              size: 120,
+            SvgPicture.asset(
+              'assets/brand/empty_state_no_device.svg',
+              width: 200,
+              height: 170,
             ),
-            const SizedBox(height: 24),
-            Text('还没有配对的设备',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: CrossLinkTheme.spaceXl),
+            Text(
+              '还没有配对的设备',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: CrossLinkTheme.spaceSm),
             Text(
               '扫描电脑端 CrossLink Agent 的二维码\n即可远程访问家中的 AI 模型',
               textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: Colors.grey.shade500),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: CrossLinkTheme.spaceXl),
             FilledButton.icon(
               onPressed: () async {
                 HapticFeedback.mediumImpact();
@@ -153,8 +157,8 @@ class HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.qr_code_scanner),
               label: const Text('扫码配对'),
               style: FilledButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                backgroundColor: CrossLinkTheme.linkBlue,
               ),
             ),
           ],
@@ -169,97 +173,93 @@ class HomeScreenState extends State<HomeScreen> {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 4),
+            padding: const EdgeInsets.only(top: CrossLinkTheme.spaceLg, bottom: CrossLinkTheme.spaceXs),
             child: Column(
               children: [
                 const AnimatedMessenger(
                   state: MessengerState.connected,
                   size: 72,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: CrossLinkTheme.spaceSm),
                 Text(
                   '${_devices.length} 个设备已配对',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: Colors.grey.shade500),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),
           ),
         ),
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final device = _devices[index];
-              final sessions = _history!.listSessions(device.deviceId);
-              final preview = _lastPreview(device.deviceId);
-              final time = _lastTime(device.deviceId);
-              final count = _sessionCount(device.deviceId);
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: CrossLinkTheme.spaceMd),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final device = _devices[index];
+                final sessions = _history!.listSessions(device.deviceId);
+                final preview = _lastPreview(device.deviceId);
+                final time = _lastTime(device.deviceId);
+                final count = _sessionCount(device.deviceId);
 
-              return _StaggeredItem(
-                index: index,
-                child: Dismissible(
-                  key: Key(device.deviceId),
-                  direction: DismissDirection.endToStart,
-                  confirmDismiss: (_) async {
-                    HapticFeedback.heavyImpact();
-                    return await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('删除设备'),
-                        content:
-                            Text('删除后将清除 $count 个对话记录，确定继续？'),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('取消')),
-                          FilledButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('删除')),
-                        ],
-                      ),
-                    );
-                  },
-                  onDismissed: (_) => _removeDevice(index),
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: Colors.red.shade800,
-                        borderRadius: BorderRadius.circular(14)),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  child: _DeviceCard(
-                    device: device,
-                    lastPreview: preview,
-                    lastTime: time,
-                    sessionCount: count,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      final latestId =
-                          sessions.isNotEmpty ? sessions.first : null;
-                      Navigator.push(
-                        context,
-                        _slideRoute(ChatScreen(
-                          device: device,
-                          settings: _settings!,
-                          sessionId: latestId,
-                        )),
-                      ).then((_) => setState(() {}));
+                return _StaggeredItem(
+                  index: index,
+                  child: Dismissible(
+                    key: Key(device.deviceId),
+                    direction: DismissDirection.endToStart,
+                    confirmDismiss: (_) async {
+                      HapticFeedback.heavyImpact();
+                      return await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('删除设备'),
+                          content: Text('删除后将清除 $count 个对话记录，确定继续？'),
+                          actions: [
+                            TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('取消')),
+                            FilledButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('删除')),
+                          ],
+                        ),
+                      );
                     },
+                    onDismissed: (_) => _removeDevice(index),
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      margin: const EdgeInsets.symmetric(vertical: CrossLinkTheme.spaceXs),
+                      decoration: BoxDecoration(
+                        color: CrossLinkTheme.errorRed.withAlpha(160),
+                        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+                      ),
+                      child: const Icon(Icons.delete, color: Colors.white),
+                    ),
+                    child: _DeviceCard(
+                      device: device,
+                      lastPreview: preview,
+                      lastTime: time,
+                      sessionCount: count,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        final latestId = sessions.isNotEmpty ? sessions.first : null;
+                        Navigator.push(
+                          context,
+                          _slideRoute(AgentSelectScreen(
+                            device: device,
+                          )),
+                        ).then((_) => setState(() {}));
+                      },
+                    ),
                   ),
-                ),
-              );
-            },
-            childCount: _devices.length,
+                );
+              },
+              childCount: _devices.length,
+            ),
           ),
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
             child: OutlinedButton.icon(
               onPressed: () async {
                 HapticFeedback.mediumImpact();
@@ -273,6 +273,8 @@ class HomeScreenState extends State<HomeScreen> {
               label: const Text('添加设备'),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
+                side: const BorderSide(color: CrossLinkTheme.linkBlue),
+                foregroundColor: CrossLinkTheme.linkCyan,
               ),
             ),
           ),
@@ -289,12 +291,11 @@ class HomeScreenState extends State<HomeScreen> {
           position: Tween<Offset>(
             begin: const Offset(0.3, 0),
             end: Offset.zero,
-          ).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+          ).animate(CurvedAnimation(parent: animation, curve: CrossLinkTheme.curveDefault)),
           child: FadeTransition(opacity: animation, child: child),
         );
       },
-      transitionDuration: const Duration(milliseconds: 280),
+      transitionDuration: CrossLinkTheme.durationNormal,
     );
   }
 }
@@ -302,6 +303,7 @@ class HomeScreenState extends State<HomeScreen> {
 class _StaggeredItem extends StatefulWidget {
   final int index;
   final Widget child;
+
   const _StaggeredItem({required this.index, required this.child});
 
   @override
@@ -319,15 +321,15 @@ class _StaggeredItemState extends State<_StaggeredItem>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: CrossLinkTheme.durationSlow,
     );
-    _slide = Tween(begin: 40.0, end: 0.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic),
+    _slide = Tween(begin: 30.0, end: 0.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: CrossLinkTheme.curveDefault),
     );
     _fade = Tween(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
     );
-    Future.delayed(Duration(milliseconds: 80 * widget.index), () {
+    Future.delayed(Duration(milliseconds: 60 * widget.index), () {
       if (mounted) _ctrl.forward();
     });
   }
@@ -372,70 +374,85 @@ class _DeviceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      margin: const EdgeInsets.symmetric(vertical: CrossLinkTheme.spaceXs),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd)),
       elevation: 0,
+      color: CrossLinkTheme.panel.withAlpha(220),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-                color: cs.outlineVariant.withAlpha(60), width: 0.5),
-            gradient: LinearGradient(
+            borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+            border: Border.all(color: cs.outlineVariant.withAlpha(40), width: 0.5),
+            gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                cs.surfaceContainerHighest.withAlpha(40),
-                cs.surfaceContainerHighest.withAlpha(10),
-              ],
+              colors: [Color(0x18FFFFFF), Colors.transparent],
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
             child: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: [
-                      cs.primary.withAlpha(100),
-                      cs.primary.withAlpha(20),
+                    gradient: const RadialGradient(colors: [
+                      CrossLinkTheme.linkBlue,
+                      CrossLinkTheme.linkPurple,
                     ]),
                     boxShadow: [
                       BoxShadow(
-                          color: cs.primary.withAlpha(30), blurRadius: 8),
+                        color: CrossLinkTheme.linkBlue.withAlpha(60),
+                        blurRadius: 12,
+                      ),
                     ],
                   ),
-                  child: Icon(Icons.computer,
-                      color: cs.primary.withAlpha(200), size: 22),
+                  child: const Icon(Icons.computer, color: Colors.white, size: 22),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: CrossLinkTheme.spaceMd),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        device.deviceName.isNotEmpty
-                            ? device.deviceName
-                            : device.agentId,
-                        style: Theme.of(context).textTheme.titleSmall,
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: CrossLinkTheme.successGreen,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              device.deviceName.isNotEmpty ? device.deviceName : device.agentId,
+                              style: Theme.of(context).textTheme.titleSmall,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 2),
                       if (lastPreview != null)
-                        Text(lastPreview!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.grey.shade500)),
+                        Text(
+                          lastPreview!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       if (lastPreview == null)
-                        Text('点击开始对话',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.grey.shade600,
-                                fontStyle: FontStyle.italic)),
+                        Text(
+                          '点击开始对话',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontStyle: FontStyle.italic,
+                              ),
+                        ),
                     ],
                   ),
                 ),
@@ -443,26 +460,26 @@ class _DeviceCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     if (lastTime != null)
-                      Text(lastTime!,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: Colors.grey.shade600)),
+                      Text(lastTime!, style: Theme.of(context).textTheme.labelSmall),
                     const SizedBox(height: 4),
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: cs.primary.withAlpha(25),
-                        borderRadius: BorderRadius.circular(8),
+                        color: CrossLinkTheme.linkBlue.withAlpha(30),
+                        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusXl),
                       ),
-                      child: Text('$sessionCount 会话',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: cs.primary.withAlpha(180), fontSize: 10)),
+                      child: Text(
+                        '$sessionCount 会话',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(color: CrossLinkTheme.linkCyan, fontSize: 10),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.chevron_right,
-                    color: Colors.grey.shade700, size: 20),
+                const Icon(Icons.chevron_right, color: Colors.white54, size: 20),
               ],
             ),
           ),

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../models/pairing.dart';
 import '../services/crypto_service.dart';
 import '../services/http_service.dart';
 import '../services/pairing_service.dart';
+import '../theme/crosslink_theme.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -20,27 +23,35 @@ class _ScanScreenState extends State<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: CrossLinkTheme.deepSpace,
       appBar: AppBar(
         title: const Text('扫码配对'),
+        backgroundColor: CrossLinkTheme.deepSpace.withAlpha(200),
       ),
       body: Stack(
+        fit: StackFit.expand,
         children: [
           MobileScanner(
             controller: controller,
             onDetect: _detected ? null : _onDetect,
           ),
-          // Scan overlay frame
-          Center(
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.green, width: 2),
-                borderRadius: BorderRadius.circular(16),
+          // 暗角遮罩
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(120),
+            ),
+            child: Center(
+              child: SizedBox(
+                width: 250,
+                height: 250,
+                child: SvgPicture.asset(
+                  'assets/brand/scan_frame.svg',
+                  width: 250,
+                  height: 250,
+                ),
               ),
             ),
           ),
-          // Hint text
           Positioned(
             bottom: 80,
             left: 0,
@@ -48,10 +59,12 @@ class _ScanScreenState extends State<ScanScreen> {
             child: Text(
               '将相机对准电脑端 CrossLink Agent 的二维码',
               textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.white70),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withAlpha(200),
+                    shadows: [
+                      const Shadow(color: Colors.black, blurRadius: 8),
+                    ],
+                  ),
             ),
           ),
         ],
@@ -69,7 +82,7 @@ class _ScanScreenState extends State<ScanScreen> {
       try {
         setState(() => _detected = true);
         final qr = QRPayload.fromUri(value);
-        _showPairingDialog(qr);
+        _showPairingSheet(qr);
         return;
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -79,11 +92,16 @@ class _ScanScreenState extends State<ScanScreen> {
     }
   }
 
-  void _showPairingDialog(QRPayload qr) {
-    showDialog<PairedDevice>(
+  void _showPairingSheet(QRPayload qr) {
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => _PairingDialog(qr: qr),
+      isDismissible: false,
+      isScrollControlled: true,
+      backgroundColor: CrossLinkTheme.deepSpaceElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(CrossLinkTheme.radiusLg)),
+      ),
+      builder: (ctx) => _PairingSheet(qr: qr),
     ).then((device) {
       if (device != null && mounted) {
         Navigator.pop(context, device);
@@ -100,17 +118,17 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 }
 
-/// Dialog that drives the real pairing handshake.
-class _PairingDialog extends StatefulWidget {
+class _PairingSheet extends StatefulWidget {
   final QRPayload qr;
-  const _PairingDialog({required this.qr});
+
+  const _PairingSheet({required this.qr});
 
   @override
-  State<_PairingDialog> createState() => _PairingDialogState();
+  State<_PairingSheet> createState() => _PairingSheetState();
 }
 
-class _PairingDialogState extends State<_PairingDialog> {
-  String _status = '正在初始化加密...';
+class _PairingSheetState extends State<_PairingSheet> {
+  String _status = '正在初始化加密…';
   bool _done = false;
   bool _failed = false;
   PairedDevice? _result;
@@ -130,10 +148,9 @@ class _PairingDialogState extends State<_PairingDialog> {
     const deviceName = 'Flutter Device';
 
     if (qr.isHttpV2) {
-      // ---- HTTP v2 pairing (simplified, no WebSocket) ----
-      setState(() => _status = '正在连接 Agent...');
+      setState(() => _status = '正在连接 Agent…');
       try {
-        final baseUrl = qr.serverUrl.split('/pair?').first; // extract base
+        final baseUrl = qr.serverUrl.split('/pair?').first;
         final device = await HttpPairing.pair(
           serverUrl: baseUrl,
           pairToken: qr.pairToken,
@@ -155,7 +172,6 @@ class _PairingDialogState extends State<_PairingDialog> {
       return;
     }
 
-    // ---- WebSocket v1 pairing (fallback) ----
     final token = await _pairing.pair(
       qr,
       deviceName,
@@ -164,11 +180,11 @@ class _PairingDialogState extends State<_PairingDialog> {
         setState(() {
           switch (status) {
             case PairingStatus.connecting:
-              _status = '正在连接信令服务器...';
+              _status = '正在连接信令服务器…';
             case PairingStatus.requestSent:
-              _status = '正在发送配对请求...';
+              _status = '正在发送配对请求…';
             case PairingStatus.accepted:
-              _status = '配对成功！\n正在解密密钥...';
+              _status = '配对成功！\n正在解密密钥…';
             case PairingStatus.rejected:
               _status = '配对被拒绝\n请在电脑端确认配对请求';
               _failed = true;
@@ -201,52 +217,85 @@ class _PairingDialogState extends State<_PairingDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(_done ? '配对成功！' : _failed ? '配对失败' : '正在配对...'),
-      content: Column(
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.all(CrossLinkTheme.spaceXxl),
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (!_done && !_failed)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _done
+                  ? CrossLinkTheme.successGreen.withAlpha(40)
+                  : _failed
+                      ? CrossLinkTheme.errorRed.withAlpha(40)
+                      : CrossLinkTheme.linkBlue.withAlpha(40),
             ),
-          if (_failed)
-            const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.error_outline, color: Colors.red, size: 40),
+            child: Center(
+              child: _done
+                  ? const Icon(Icons.check_circle, color: CrossLinkTheme.successGreen, size: 28)
+                  : _failed
+                      ? const Icon(Icons.error_outline, color: CrossLinkTheme.errorRed, size: 28)
+                      : const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
             ),
-          if (_done)
-            const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.check_circle, color: Colors.green, size: 40),
-            ),
-          Text(_status, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 8),
+          ),
+          const SizedBox(height: CrossLinkTheme.spaceLg),
           Text(
-            'Agent: ${widget.qr.peerId}',
+            _done ? '配对成功' : _failed ? '配对失败' : '正在配对…',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: CrossLinkTheme.spaceSm),
+          Text(
+            _status,
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          const SizedBox(height: CrossLinkTheme.spaceXs),
+          Text(
+            'Agent: ${widget.qr.peerId}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurface.withAlpha(120),
+                ),
+          ),
           if (_result != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: CrossLinkTheme.spaceSm),
             Text(
-              '密钥：${_result!.token.substring(0, 16)}...',
-              style: Theme.of(context).textTheme.bodySmall,
+              '密钥：${_result!.token.substring(0, 16)}…',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: cs.onSurface.withAlpha(120),
+                    fontFamily: 'monospace',
+                  ),
             ),
           ],
+          const SizedBox(height: CrossLinkTheme.spaceXl),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(_done ? '关闭' : '取消'),
+                ),
+              ),
+              if (_done && _result != null) ...[
+                const SizedBox(width: CrossLinkTheme.spaceMd),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context, _result),
+                    child: const Text('保存设备'),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(_done ? '关闭' : '取消'),
-        ),
-        if (_done && _result != null)
-          FilledButton(
-            onPressed: () => Navigator.pop(context, _result),
-            child: const Text('保存设备'),
-          ),
-      ],
     );
   }
 }

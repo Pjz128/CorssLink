@@ -20,8 +20,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -34,11 +36,11 @@ import (
 	"strings"
 
 	"crosslink-poc/agent"
-	"crosslink-poc/agent/claude"
-	"crosslink-poc/agent/pool"
-	"crosslink-poc/cloud"
-	"crosslink-poc/ollama"
 	"crosslink-poc/pairing"
+	"crosslink-poc/plugin"
+	claudeplugin "crosslink-poc/plugin/claude"
+	deepplugin "crosslink-poc/plugin/deepseek"
+	ollamaplugin "crosslink-poc/plugin/ollama"
 )
 
 var (
@@ -120,21 +122,11 @@ func runAgent(ctx context.Context) error {
 	lanIP := detectLANIP()
 	log.Printf("[agent] LAN IP: %s", lanIP)
 
-	// ---- Build BackendPool ----
-	backendPool := pool.NewBackendPool()
+	// ---- Build Plugin Registry ----
+	registry := plugin.NewRegistry()
 
-	// 1. Ollama (local, if available)
-	ollamaClient := ollama.NewClient("")
-	if version, err := ollamaClient.Ping(); err == nil {
-		models, _ := ollamaClient.ListModels()
-		if len(models) == 0 {
-			models = []ollama.ModelInfo{{Name: "ollama"}}
-		}
-		backendPool.Register("ollama", ollamaClient, ollama.AgentInfo{
-			Type: "ollama", Label: "Ollama (本地)", Models: models,
-		})
-		log.Printf("[agent] 🦙 Ollama ready: %s, %d models", version, len(models))
-	} else {
+	// 1. Ollama (local, auto-detects availability via Init)
+	if err := registry.Register(ollamaplugin.New(ollamaplugin.Config{})); err != nil {
 		log.Printf("[agent] ⚠️  Ollama not available: %v (skipped)", err)
 	}
 
@@ -142,37 +134,39 @@ func runAgent(ctx context.Context) error {
 	claudePath := envOr("CLAUDE_PATH",
 		`C:\Users\22730\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe`)
 	claudeModel := envOr("CLAUDE_MODEL", "sonnet")
-	claudeSession, err := claude.NewSession(claude.Config{
+	agentDataDir := os.Getenv("CROSSLINK_DATA_DIR")
+	if agentDataDir == "" {
+		agentDataDir = filepath.Join(os.TempDir(), "crosslink-agent")
+	}
+	claudeDataDir := filepath.Join(agentDataDir, "claude")
+	if p, err := claudeplugin.New(claudeplugin.Config{
 		BinaryPath: claudePath,
 		Model:      claudeModel,
-	})
-	if err == nil {
-		backendPool.Register("claude", claudeSession, ollama.AgentInfo{
-			Type:   "claude",
-			Label:  "Claude Code",
-			Models: claudeSession.Models(),
-		})
-		log.Printf("[agent] 🤖 Claude Code ready (model=%s)", claudeModel)
+		DataDir:    claudeDataDir,
+	}); err == nil {
+		if err := registry.Register(p); err != nil {
+			log.Printf("[agent] ⚠️  Claude registration failed: %v", err)
+		}
 	} else {
 		log.Printf("[agent] ⚠️  Claude Code not available: %v (skipped)", err)
 	}
 
-	// 3. DeepSeek (cloud fallback)
-	deepseekClient := cloud.NewDeepSeek("", "deepseek-v4-pro")
-	backendPool.Register("deepseek", deepseekClient, ollama.AgentInfo{
-		Type:   "deepseek",
-		Label:  "DeepSeek (云端)",
-		Models: []ollama.ModelInfo{{Name: "deepseek-chat", ParamSize: "V3", Quant: "cloud"}},
-	})
-	log.Printf("[agent] ☁️  DeepSeek ready")
+	// 3. DeepSeek (cloud, always available)
+	deepseekAPIKey := os.Getenv("DEEPSEEK_API_KEY")
+	if err := registry.Register(deepplugin.New(deepplugin.Config{APIKey: deepseekAPIKey, Model: "deepseek-v4-pro"})); err != nil {
+		log.Printf("[agent] ⚠️  DeepSeek registration failed: %v", err)
+	}
 
-	log.Printf("[agent] BackendPool:\n%s", backendPool.Status())
+	log.Printf("[agent] Registry:\n%s", registry.Status())
 
 	// ---- Create HTTP server ----
 	pairToken := envOr("PAIR_TOKEN", "")
+	if pairToken == "" {
+		pairToken = persistentPairToken()
+	}
 	server, err := agent.NewServer(agent.Config{
 		Addr:      listenAddr,
-		Pool:      backendPool,
+		Registry:  registry,
 		PairToken: pairToken,
 		LanIP:     lanIP,
 	})
@@ -224,11 +218,14 @@ func runRelayMode(ctx context.Context, server *agent.Server, agentKP *pairing.Ke
 	}()
 
 	// Connect to relay (blocks, auto-reconnects)
+	deployToken := os.Getenv("DEPLOY_TOKEN")
+
 	bridge := agent.NewRelayBridge(agent.RelayConfig{
-		RelayAddr: relayAddr,
-		PeerID:    peerID,
-		PairToken: server.PairToken(),
-		Server:    server,
+		RelayAddr:   relayAddr,
+		PeerID:      peerID,
+		PairToken:   server.PairToken(),
+		DeployToken: deployToken,
+		Server:      server,
 	})
 	return bridge.Connect(ctx)
 }
@@ -268,7 +265,7 @@ func runLANMode(ctx context.Context, server *agent.Server, agentKP *pairing.KeyP
 }
 
 // relayAddrToHTTP converts a WebSocket relay address to an HTTP base URL.
-// e.g. "ws://45.197.144.16:18080/agent" → "http://45.197.144.16:18080"
+// e.g. "ws://crosslink.cyou:18080/agent" → "http://crosslink.cyou:18080"
 func relayAddrToHTTP(addr string) string {
 	u, err := url.Parse(addr)
 	if err != nil {
@@ -321,6 +318,36 @@ func openFile(path string) error {
 }
 
 // detectLANIP tries to find the local LAN IP address.
+// persistentPairToken loads or creates a pair token that survives agent restarts.
+// Uses same config directory as the keypair.
+func persistentPairToken() string {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		home, _ := os.UserHomeDir()
+		configDir = filepath.Join(home, ".crosslink")
+	} else {
+		configDir = filepath.Join(configDir, "crosslink")
+	}
+	os.MkdirAll(configDir, 0700)
+
+	tokenPath := filepath.Join(configDir, "agent_pair_token")
+	if data, err := os.ReadFile(tokenPath); err == nil && len(data) >= 16 {
+		token := strings.TrimSpace(string(data))
+		log.Printf("[agent] loaded persistent pair token from %s", tokenPath)
+		return token
+	}
+
+	b := make([]byte, 16)
+	rand.Read(b)
+	token := hex.EncodeToString(b)
+	if err := os.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+		log.Printf("[agent] WARNING: failed to save pair token: %v", err)
+	} else {
+		log.Printf("[agent] saved persistent pair token to %s", tokenPath)
+	}
+	return token
+}
+
 func detectLANIP() string {
 	// Check env first
 	if ip := os.Getenv("LAN_IP"); ip != "" {

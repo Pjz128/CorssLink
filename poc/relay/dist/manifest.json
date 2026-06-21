@@ -1,0 +1,30 @@
+{
+  "version": "1.3.0",
+  "updatedAt": "",
+  "platforms": {
+    "windows": {
+      "label": "Windows Agent",
+      "description": "AI Agent for Windows PC",
+      "files": [
+        {
+          "name": "crosslink-agent.zip",
+          "size": 0,
+          "sha256": "",
+          "description": "ollama-agent + launcher script"
+        }
+      ]
+    },
+    "android": {
+      "label": "Android APK",
+      "description": "CrossLink mobile client",
+      "files": [
+        {
+          "name": "crosslink.apk",
+          "size": 0,
+          "sha256": "",
+          "description": "CrossLink Flutter App"
+        }
+      ]
+    }
+  }
+}

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../theme/crosslink_theme.dart';
+import '../services/http_service.dart';
 import '../services/settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final SettingsService? settings;
+
   const SettingsScreen({super.key, this.settings});
 
   @override
@@ -13,14 +17,16 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   SettingsService? _settings;
+  bool _checking = false;
+  bool? _serverReachable;
 
   static const _themeColors = <_ThemeOption>[
-    _ThemeOption('深蓝', Color(0xFF1a1a2e)),
-    _ThemeOption('墨绿', Color(0xFF1b4332)),
-    _ThemeOption('暗紫', Color(0xFF3c096c)),
-    _ThemeOption('深红', Color(0xFF660708)),
-    _ThemeOption('灰蓝', Color(0xFF2b3a67)),
-    _ThemeOption('深橙', Color(0xFF5c3d2e)),
+    _ThemeOption('电光青', CrossLinkTheme.linkCyan),
+    _ThemeOption('链路蓝', CrossLinkTheme.linkBlue),
+    _ThemeOption('深空紫', CrossLinkTheme.linkPurple),
+    _ThemeOption('极光绿', CrossLinkTheme.successGreen),
+    _ThemeOption('警报橙', CrossLinkTheme.alertAmber),
+    _ThemeOption('深绯红', CrossLinkTheme.errorRed),
   ];
 
   @override
@@ -33,12 +39,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (mounted) setState(() => _settings = s);
       });
     }
+    _checkConnection();
+  }
+
+  Future<void> _checkConnection() async {
+    if (_settings == null) return;
+    setState(() => _checking = true);
+    final ok = await HttpService(
+      baseUrl: _settings!.serverUrl,
+      sessionToken: '',
+    ).healthCheck();
+    if (mounted) setState(() {
+      _serverReachable = ok;
+      _checking = false;
+    });
+  }
+
+  /// 遮罩 Agent ID，只显示首尾
+  String _maskId(String id) {
+    if (id.length <= 8) return id;
+    return '${id.substring(0, 4)}⋯${id.substring(id.length - 4)}';
+  }
+
+  /// 提取服务器域名
+  String _serverHost(String url) {
+    try {
+      final u = Uri.parse(url);
+      return u.host;
+    } catch (_) {
+      return url;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final connected = _serverReachable == true;
+
     return Scaffold(
+      backgroundColor: CrossLinkTheme.deepSpace,
       appBar: AppBar(
         toolbarHeight: 0,
         backgroundColor: Colors.transparent,
@@ -50,59 +89,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : SafeArea(
               child: ListView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(CrossLinkTheme.spaceLg),
                 children: [
+                  // ── 连接状态卡片 ──
+                  _statusCard(context, connected),
+                  const SizedBox(height: CrossLinkTheme.spaceXl),
+
+                  // ── 服务器 ──
                   _sectionHeader('连接'),
                   _optionCard(
-                    context: context,
-                    icon: Icons.cloud_outlined,
+                    icon: Icons.dns_outlined,
                     title: '中继服务器',
-                    subtitle: _settings!.serverUrl,
+                    subtitle: _serverHost(_settings!.serverUrl),
                     onTap: () => _showEditDialog(
                       title: '中继服务器地址',
                       initial: _settings!.serverUrl,
-                      hint: 'http://45.197.144.16:18080',
-                      onSaved: (v) =>
-                          setState(() => _settings!.serverUrl = v),
+                      hint: 'http://crosslink.cyou:18080',
+                      onSaved: (v) {
+                        setState(() => _settings!.serverUrl = v);
+                        _serverReachable = null;
+                        _checkConnection();
+                      },
                     ),
                   ),
                   _optionCard(
-                    context: context,
-                    icon: Icons.tag,
-                    title: 'Agent ID',
-                    subtitle: _settings!.agentId,
+                    icon: Icons.fingerprint,
+                    title: 'Agent 标识',
+                    subtitle: _maskId(_settings!.agentId),
                     onTap: () => _showEditDialog(
                       title: 'Agent ID',
                       initial: _settings!.agentId,
                       hint: 'agent-ollama-pc',
-                      onSaved: (v) =>
-                          setState(() => _settings!.agentId = v),
+                      onSaved: (v) => setState(() => _settings!.agentId = v),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: CrossLinkTheme.spaceXl),
+
+                  // ── 模型 ──
                   _sectionHeader('模型'),
                   _optionCard(
-                    context: context,
                     icon: Icons.smart_toy_outlined,
                     title: '默认模型',
-                    subtitle: _settings!.model,
+                    subtitle: _settings!.model.isNotEmpty ? _settings!.model : '未设置',
                     onTap: () => _showEditDialog(
                       title: '默认模型名称',
                       initial: _settings!.model,
-                      hint: 'deepseek-chat',
-                      onSaved: (v) =>
-                          setState(() => _settings!.model = v),
+                      hint: 'deepseek-chat / sonnet',
+                      onSaved: (v) => setState(() => _settings!.model = v),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: CrossLinkTheme.spaceXl),
+
+                  // ── 主题色 ──
                   _sectionHeader('主题色'),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: CrossLinkTheme.spaceSm),
                   Wrap(
-                    spacing: 14,
-                    runSpacing: 14,
+                    spacing: 12,
+                    runSpacing: 12,
                     children: _themeColors.map((opt) {
-                      final selected = _settings!.themeColor.toARGB32() ==
-                          opt.color.toARGB32();
+                      final selected = _settings!.themeColor.toARGB32() == opt.color.toARGB32();
                       return GestureDetector(
                         onTap: () {
                           HapticFeedback.lightImpact();
@@ -111,99 +156,142 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Tooltip(
                           message: opt.label,
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 44,
-                            height: 44,
+                            duration: CrossLinkTheme.durationFast,
+                            width: 48,
+                            height: 48,
                             decoration: BoxDecoration(
                               color: opt.color,
-                              shape: BoxShape.circle,
+                              borderRadius: BorderRadius.circular(14),
                               border: selected
-                                  ? Border.all(
-                                      color: Colors.white, width: 3)
-                                  : Border.all(
-                                      color: Colors.grey.shade700,
-                                      width: 1),
+                                  ? Border.all(color: Colors.white, width: 2.5)
+                                  : Border.all(color: cs.outlineVariant.withAlpha(80), width: 1),
                               boxShadow: selected
                                   ? [
                                       BoxShadow(
-                                          color: opt.color.withAlpha(100),
-                                          blurRadius: 12,
-                                          spreadRadius: 2)
+                                        color: opt.color.withAlpha(140),
+                                        blurRadius: 12,
+                                        spreadRadius: 2,
+                                      ),
                                     ]
                                   : null,
                             ),
                             child: selected
-                                ? const Icon(Icons.check,
-                                    color: Colors.white, size: 20)
+                                ? const Icon(Icons.check, color: Colors.white, size: 20)
                                 : null,
                           ),
                         ),
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: CrossLinkTheme.spaceXl),
+
+                  // ── 关于 ──
                   _sectionHeader('关于'),
-                  Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(
-                            color: cs.outlineVariant.withAlpha(50),
-                            width: 0.5)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              gradient: LinearGradient(colors: [
-                                cs.primary,
-                                cs.primary.withAlpha(180),
-                              ]),
-                            ),
-                            child: const Icon(Icons.link,
-                                color: Colors.white, size: 22),
-                          ),
-                          const SizedBox(width: 14),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('CrossLink',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w600)),
-                                Text('跨端 AI 互联 · v1.0.0',
-                                    style: TextStyle(fontSize: 12)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
+                  _aboutCard(context),
+                  const SizedBox(height: CrossLinkTheme.spaceXxl),
                 ],
               ),
             ),
     );
   }
 
+  Widget _statusCard(BuildContext context, bool connected) {
+    return Card(
+      elevation: 0,
+      color: connected
+          ? CrossLinkTheme.successGreen.withAlpha(15)
+          : CrossLinkTheme.panel.withAlpha(200),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        side: BorderSide(
+          color: connected
+              ? CrossLinkTheme.successGreen.withAlpha(60)
+              : Colors.white12,
+          width: 0.5,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: CrossLinkTheme.durationNormal,
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: connected
+                    ? CrossLinkTheme.successGreen
+                    : CrossLinkTheme.panelHover,
+                shape: BoxShape.circle,
+                boxShadow: connected
+                    ? [
+                        BoxShadow(
+                          color: CrossLinkTheme.successGreen.withAlpha(100),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : null,
+              ),
+            ),
+            const SizedBox(width: CrossLinkTheme.spaceMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    connected ? '已连接' : _checking ? '检测中…' : '未连接',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: connected
+                          ? CrossLinkTheme.successGreen
+                          : Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    connected
+                        ? '中继服务器运行正常'
+                        : _serverReachable == null
+                            ? '点击右侧按钮检测'
+                            : '无法连接，请检查地址',
+                    style: TextStyle(fontSize: 12, color: Colors.white38),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: _checking ? null : _checkConnection,
+              icon: _checking
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded, size: 20),
+              color: connected ? CrossLinkTheme.successGreen : Colors.white38,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _sectionHeader(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(text,
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall
-              ?.copyWith(fontWeight: FontWeight.w600)),
+      padding: const EdgeInsets.only(bottom: CrossLinkTheme.spaceSm),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: CrossLinkTheme.linkCyan,
+              fontSize: 13,
+              letterSpacing: 0.5,
+            ),
+      ),
     );
   }
 
   Widget _optionCard({
-    required BuildContext context,
     required IconData icon,
     required String title,
     required String subtitle,
@@ -212,24 +300,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final cs = Theme.of(context).colorScheme;
     return Card(
       elevation: 0,
+      margin: const EdgeInsets.only(bottom: CrossLinkTheme.spaceSm),
+      color: CrossLinkTheme.panel.withAlpha(200),
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: cs.outlineVariant.withAlpha(50), width: 0.5)),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        side: BorderSide(color: cs.outlineVariant.withAlpha(50), width: 0.5),
+      ),
       child: ListTile(
-        leading:
-            Icon(icon, color: cs.primary.withAlpha(180), size: 22),
-        title: Text(title,
-            style: Theme.of(context).textTheme.bodyMedium),
-        subtitle: Text(subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: Colors.grey.shade500)),
-        trailing:
-            Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade600),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: CrossLinkTheme.spaceMd,
+          vertical: 2,
+        ),
+        leading: Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(
+            color: CrossLinkTheme.linkCyan.withAlpha(15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: CrossLinkTheme.linkCyan, size: 18),
+        ),
+        title: Text(title, style: Theme.of(context).textTheme.bodyMedium),
+        subtitle: Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+                fontSize: 11,
+              ),
+        ),
+        trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.white30),
         onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _aboutCard(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: CrossLinkTheme.panel.withAlpha(200),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        side: BorderSide(color: Colors.white10, width: 0.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(CrossLinkTheme.radiusSm),
+                gradient: const LinearGradient(colors: [
+                  CrossLinkTheme.linkCyan,
+                  CrossLinkTheme.linkBlue,
+                ]),
+              ),
+              child: SvgPicture.asset(
+                'assets/brand/crosslink_logo.svg',
+                width: 26,
+                height: 26,
+              ),
+            ),
+            const SizedBox(width: CrossLinkTheme.spaceMd),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('CrossLink',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  Text('跨端 AI 互联 · v1.3.0',
+                      style: TextStyle(fontSize: 12, color: Colors.white38)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -244,17 +391,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
+        backgroundColor: CrossLinkTheme.deepSpaceElevated,
+        title: Text(title, style: const TextStyle(fontSize: 16)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
+          style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
           decoration: InputDecoration(
-              hintText: hint, border: const OutlineInputBorder()),
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.white24, fontFamily: 'monospace', fontSize: 13),
+            border: const OutlineInputBorder(),
+            filled: true,
+            fillColor: CrossLinkTheme.deepSpace,
+          ),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
             onPressed: () {
               final v = ctrl.text.trim();
@@ -263,9 +415,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 HapticFeedback.lightImpact();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                      content: Text('已保存'),
-                      duration: Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating),
+                    content: Text('已保存'),
+                    duration: Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ),
                 );
               }
               Navigator.pop(ctx);

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 250" width="250" height="250">
+  <defs>
+    <linearGradient id="scanGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="100%" stop-color="#2979FF"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#00E5FF" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#2979FF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 扫描区域背景框（仅描边） -->
+  <rect x="20" y="20" width="210" height="210" rx="18" fill="none" stroke="url(#scanGrad)" stroke-width="1.5" opacity="0.3" filter="url(#glow)"/>
+
+  <!-- 四角瞄准角标 -->
+  <!-- 左上 -->
+  <path d="M 20 55 L 20 25 A 5 5 0 0 1 25 20 L 55 20" fill="none" stroke="url(#scanGrad)" stroke-width="4" stroke-linecap="round" filter="url(#glow)"/>
+  <!-- 右上 -->
+  <path d="M 195 20 L 225 20 A 5 5 0 0 0 230 25 L 230 55" fill="none" stroke="url(#scanGrad)" stroke-width="4" stroke-linecap="round" filter="url(#glow)"/>
+  <!-- 左下 -->
+  <path d="M 20 195 L 20 225 A 5 5 0 0 0 25 230 L 55 230" fill="none" stroke="url(#scanGrad)" stroke-width="4" stroke-linecap="round" filter="url(#glow)"/>
+  <!-- 右下 -->
+  <path d="M 195 230 L 225 230 A 5 5 0 0 1 230 225 L 230 195" fill="none" stroke="url(#scanGrad)" stroke-width="4" stroke-linecap="round" filter="url(#glow)"/>
+
+  <!-- 扫描线 -->
+  <line x1="28" y1="125" x2="222" y2="125" stroke="url(#lineGrad)" stroke-width="2" filter="url(#glow)"/>
+
+  <!-- 中心定位点 -->
+  <circle cx="125" cy="125" r="4" fill="#00E5FF" opacity="0.8" filter="url(#glow)"/>
+  <circle cx="125" cy="125" r="10" fill="none" stroke="#00E5FF" stroke-width="1" opacity="0.4"/>
+</svg>

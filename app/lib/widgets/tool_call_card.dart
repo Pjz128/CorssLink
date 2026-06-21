@@ -1,14 +1,19 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 
-/// A collapsible card showing a Claude tool call (e.g. Bash, Read, Grep).
-/// Matches Claude PC terminal output style with per-tool color accents.
+import '../theme/crosslink_theme.dart';
+
+/// 工具调用卡片 —— 深空链路风格
+///
+/// 左侧彩色强调条 + 工具 icon + 运行状态 + 可折叠 JSON 输入。
 class ToolCallCard extends StatefulWidget {
   final String id;
   final String name;
   final Map<String, dynamic>? input;
   final String? resultSummary;
   final bool isError;
+  final bool collapsed;
+
   const ToolCallCard({
     super.key,
     required this.id,
@@ -16,6 +21,7 @@ class ToolCallCard extends StatefulWidget {
     this.input,
     this.resultSummary,
     this.isError = false,
+    this.collapsed = false,
   });
 
   @override
@@ -33,9 +39,20 @@ class _ToolCallCardState extends State<ToolCallCard>
     super.initState();
     _iconCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: CrossLinkTheme.durationFast,
     );
     _iconTurns = Tween(begin: 0.0, end: 0.5).animate(_iconCtrl);
+  }
+
+  @override
+  void didUpdateWidget(ToolCallCard old) {
+    super.didUpdateWidget(old);
+    if (widget.collapsed && !old.collapsed) {
+      setState(() {
+        _expanded = false;
+        _iconCtrl.reverse();
+      });
+    }
   }
 
   @override
@@ -55,137 +72,263 @@ class _ToolCallCardState extends State<ToolCallCard>
     });
   }
 
-  static Color _colorForTool(String name, ColorScheme cs) {
-    switch (name) {
-      case 'Bash': return Colors.amber.shade300;
-      case 'Grep': return Colors.green.shade400;
-      case 'Read': return Colors.blue.shade300;
-      case 'Write': case 'Edit': return Colors.orange.shade300;
-      case 'Glob': return Colors.purple.shade300;
-      case 'WebSearch': return Colors.cyan.shade300;
-      case 'WebFetch': return Colors.teal.shade300;
-      case 'Task': return Colors.pink.shade300;
-      default: return cs.primary;
-    }
-  }
-
-  static IconData _iconForTool(String name) {
-    switch (name) {
-      case 'Read': return Icons.menu_book;
-      case 'Write': case 'Edit': return Icons.edit_note;
-      case 'Bash': return Icons.terminal;
-      case 'Grep': return Icons.search;
-      case 'Glob': return Icons.folder_open;
-      case 'WebSearch': return Icons.public;
-      case 'WebFetch': return Icons.download;
-      case 'Task': return Icons.assignment;
-      default: return Icons.build;
-    }
-  }
-
   String _formattedInput() {
     if (widget.input == null || widget.input!.isEmpty) return '';
     const encoder = JsonEncoder.withIndent('  ');
     return encoder.convert(widget.input);
   }
 
+  bool get _hasDetails =>
+      (widget.input != null && widget.input!.isNotEmpty) ||
+      (widget.resultSummary != null && widget.resultSummary!.isNotEmpty);
+
+  bool get _isDone => widget.resultSummary != null || widget.isError;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final toolColor = _colorForTool(widget.name, cs);
-    final hasDetails = widget.input != null && widget.input!.isNotEmpty;
-    final hasResult = widget.resultSummary != null && widget.resultSummary!.isNotEmpty;
+    final toolColor = widget.name.toolColor;
+    final toolIcon = widget.name.toolIcon;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Container(
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHighest.withAlpha(40),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: widget.isError ? Colors.red.shade700 : cs.outlineVariant.withAlpha(60),
-            width: 0.5,
+      padding: const EdgeInsets.only(bottom: CrossLinkTheme.spaceMd),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        child: Container(
+          decoration: BoxDecoration(
+            color: CrossLinkTheme.panel.withAlpha(220),
+            borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+            border: Border.all(
+              color: widget.isError
+                  ? CrossLinkTheme.errorRed.withAlpha(120)
+                  : cs.outlineVariant.withAlpha(50),
+              width: 0.5,
+            ),
+            boxShadow: CrossLinkTheme.panelShadow,
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: (hasDetails || hasResult) ? _toggle : null,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IntrinsicHeight(
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(_iconForTool(widget.name), size: 14, color: toolColor),
-                    const SizedBox(width: 6),
+                    Container(width: 4, color: toolColor),
                     Expanded(
-                      child: Text(
-                        widget.name,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: toolColor),
-                        overflow: TextOverflow.ellipsis,
+                      child: InkWell(
+                        onTap: _hasDetails ? _toggle : null,
+                        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+                        child: Padding(
+                          padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+                          child: Row(
+                            children: [
+                              Icon(toolIcon, size: 18, color: toolColor),
+                              const SizedBox(width: CrossLinkTheme.spaceSm),
+                              Expanded(
+                                child: Text(
+                                  widget.name,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: toolColor,
+                                  ),
+                                ),
+                              ),
+                              if (widget.id.isNotEmpty)
+                                Text(
+                                  widget.id.length > 8
+                                      ? '#${widget.id.substring(0, 8)}'
+                                      : '#${widget.id}',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontFamily: 'monospace',
+                                    color: cs.onSurface.withAlpha(80),
+                                  ),
+                                ),
+                              const SizedBox(width: CrossLinkTheme.spaceSm),
+                              _StatusDot(
+                                isError: widget.isError,
+                                isDone: _isDone,
+                              ),
+                              if (_hasDetails) ...[
+                                const SizedBox(width: CrossLinkTheme.spaceXs),
+                                AnimatedBuilder(
+                                  animation: _iconTurns,
+                                  builder: (_, child) => Transform.rotate(
+                                    angle: _iconTurns.value * 3.14159,
+                                    child: child,
+                                  ),
+                                  child: Icon(
+                                    Icons.chevron_right,
+                                    size: 18,
+                                    color: cs.onSurface.withAlpha(120),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    if (widget.id.isNotEmpty)
-                      Text(
-                        widget.id.length > 8 ? '#${widget.id.substring(0, 8)}' : '#${widget.id}',
-                        style: TextStyle(fontSize: 9, fontFamily: 'monospace', color: cs.onSurface.withAlpha(80)),
-                      ),
-                    const SizedBox(width: 6),
-                    if (widget.resultSummary == null && !widget.isError)
-                      SizedBox(
-                        width: 10, height: 10,
-                        child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.amber.shade300),
-                      )
-                    else
-                      Icon(
-                        widget.isError ? Icons.error_outline : Icons.check_circle_outline,
-                        size: 14,
-                        color: widget.isError ? Colors.red.shade400 : Colors.green.shade400,
-                      ),
-                    if (hasDetails || hasResult) ...[
-                      const SizedBox(width: 4),
-                      AnimatedBuilder(
-                        animation: _iconTurns,
-                        builder: (_, child) => Transform.rotate(angle: _iconTurns.value * 3.14159, child: child),
-                        child: Icon(Icons.chevron_right, size: 14, color: cs.onSurface.withAlpha(120)),
-                      ),
-                    ],
                   ],
                 ),
               ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: _expanded && hasDetails
-                  ? Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: cs.surface.withAlpha(120),
-                          borderRadius: BorderRadius.circular(6),
+              AnimatedSize(
+                duration: CrossLinkTheme.durationNormal,
+                curve: CrossLinkTheme.curveDefault,
+                alignment: Alignment.topCenter,
+                child: _expanded && _hasDetails
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          CrossLinkTheme.spaceMd,
+                          0,
+                          CrossLinkTheme.spaceMd,
+                          CrossLinkTheme.spaceMd,
                         ),
-                        child: SelectableText(
-                          _formattedInput(),
-                          style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: cs.onSurface.withAlpha(180), height: 1.4),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            if (widget.input != null && widget.input!.isNotEmpty)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(CrossLinkTheme.spaceSm),
+                                decoration: BoxDecoration(
+                                  color: CrossLinkTheme.deepSpace.withAlpha(160),
+                                  borderRadius: BorderRadius.circular(CrossLinkTheme.radiusSm),
+                                  border: Border.all(
+                                    color: cs.outlineVariant.withAlpha(40),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: SelectableText(
+                                  _formattedInput(),
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 11,
+                                    color: cs.onSurface.withAlpha(180),
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            if (widget.resultSummary != null &&
+                                widget.resultSummary!.isNotEmpty) ...[
+                              const SizedBox(height: CrossLinkTheme.spaceSm),
+                              Text(
+                                widget.resultSummary!,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: cs.onSurface.withAlpha(140),
+                                ),
+                              ),
+                            ],
+                          ],
+                            ),
+                          ),
                         ),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-            if (_expanded && hasResult)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: Text(widget.resultSummary!, maxLines: 3, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11, color: cs.onSurface.withAlpha(140))),
+                      )
+                    : const SizedBox.shrink(),
               ),
-          ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusDot extends StatelessWidget {
+  final bool isError;
+  final bool isDone;
+  const _StatusDot({required this.isError, required this.isDone});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isError
+        ? CrossLinkTheme.errorRed
+        : isDone
+            ? CrossLinkTheme.successGreen
+            : CrossLinkTheme.alertAmber;
+
+    return SizedBox(
+      width: 14,
+      height: 14,
+      child: Center(
+        child: isDone
+            ? Icon(
+                isError ? Icons.error_outline : Icons.check_circle_outline,
+                size: 14,
+                color: color,
+              )
+            : _PulseDot(color: color),
+      ),
+    );
+  }
+}
+
+class _PulseDot extends StatefulWidget {
+  final Color color;
+  const _PulseDot({required this.color});
+
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _scale = Tween(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+    _opacity = Tween(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Opacity(
+        opacity: _opacity.value,
+        child: Transform.scale(
+          scale: _scale.value,
+          child: Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: widget.color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withAlpha(120),
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

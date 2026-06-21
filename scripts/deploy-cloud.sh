@@ -9,7 +9,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-HOST="${1:-45.197.144.16:22}"
+HOST="${1:-crosslink.cyou:22}"
 USER="${2:-root}"
 PASS="${CL_PASS:-}"
 
@@ -39,6 +39,7 @@ echo ""
 banner "Building relay server (linux/amd64)"
 cd "$ROOT/poc"
 export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
+go mod tidy 2>&1
 GOOS=linux GOARCH=amd64 go build -o relay-server ./relay/ 2>&1
 ok "relay-server built"
 
@@ -108,12 +109,20 @@ else
   echo "  [FAIL] Relay server not responding"
 fi
 
+echo "Dashboard:"
+if run_ssh "curl -s -o /dev/null -w '%{http_code}' http://localhost:18080/dashboard" 2>/dev/null | grep -q 200; then
+  ok "Dashboard serving (200)"
+else
+  echo "  [WARN] Dashboard not responding (may need binary with embed)"
+fi
+
 echo ""
 echo "Systemd status:"
 run_ssh "systemctl status crosslink-relay --no-pager -l | head -5" 2>/dev/null || true
 
 echo ""
 echo -e "${GREEN}Deploy complete.${NC}"
+echo "  Dashboard:        http://${HOST%:*}:18080/dashboard"
 echo "  Relay (Agent WS):  ws://${HOST%:*}:18080/agent"
 echo "  Relay (Phone HTTP): http://${HOST%:*}:18080"
 echo ""
