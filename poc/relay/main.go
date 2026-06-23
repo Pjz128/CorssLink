@@ -419,6 +419,11 @@ func (rs *relayServer) handleChat(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusBadRequest, "body too large")
 		return
 	}
+	// Reject empty messages
+	if len(body) == 0 {
+		jsonError(w, http.StatusBadRequest, "empty message")
+		return
+	}
 
 	// Forward to agent
 	headers := map[string]string{
