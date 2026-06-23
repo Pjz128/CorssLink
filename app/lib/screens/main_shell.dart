@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/crosslink_theme.dart';
-import 'discover_screen.dart';
+import 'abilities_screen.dart';
 import 'home_screen.dart';
 import 'sessions_screen.dart';
 import 'settings_screen.dart';
@@ -19,12 +19,11 @@ class _MainShellState extends State<MainShell> {
 
   final _homeKey = GlobalKey<HomeScreenState>();
   final _sessionsKey = GlobalKey<SessionsScreenState>();
-  final _discoverKey = GlobalKey<DiscoverScreenState>();
 
   static const _tabs = <_TabDef>[
     _TabDef(label: '设备', icon: Icons.devices_outlined, activeIcon: Icons.devices),
     _TabDef(label: '会话', icon: Icons.chat_bubble_outline, activeIcon: Icons.chat_bubble),
-    _TabDef(label: '发现', icon: Icons.explore_outlined, activeIcon: Icons.explore),
+    _TabDef(label: '能力', icon: Icons.toggle_on_outlined, activeIcon: Icons.toggle_on),
     _TabDef(label: '设置', icon: Icons.settings_outlined, activeIcon: Icons.settings),
   ];
 
@@ -38,9 +37,6 @@ class _MainShellState extends State<MainShell> {
         break;
       case 1:
         _sessionsKey.currentState?.refresh();
-        break;
-      case 2:
-        _discoverKey.currentState?.refresh();
         break;
     }
   }
@@ -86,7 +82,7 @@ class _MainShellState extends State<MainShell> {
       case 1:
         return SessionsScreen(key: _sessionsKey);
       case 2:
-        return DiscoverScreen(key: _discoverKey);
+        return const AbilitiesScreen();
       default:
         return const SettingsScreen();
     }
