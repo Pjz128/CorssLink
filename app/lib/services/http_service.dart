@@ -171,6 +171,32 @@ class HttpService {
     return [];
   }
 
+  /// GET/POST /api/claude/permission-mode → 查询/设置权限模式
+  Future<String> fetchPermissionMode() async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/claude/permission-mode');
+      final res = await http.get(uri);
+      if (res.statusCode == 200) {
+        final d = jsonDecode(res.body) as Map<String, dynamic>;
+        return d['mode'] as String? ?? 'default';
+      }
+    } catch (_) {}
+    return 'default';
+  }
+
+  Future<bool> setPermissionMode(String mode) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/claude/permission-mode');
+      final res = await http.post(uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'mode': mode}),
+      );
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> deleteClaudeSession(String id) async {
     try {
       final uri = Uri.parse('$baseUrl/api/claude/sessions/$id');

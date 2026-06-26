@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -63,6 +64,22 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, ChoiceRequestEvent> _choiceRequests = {};
   final Set<String> _trustedTools = {};
   bool _permSheetShowing = false;
+  String _permMode = 'default';
+
+  IconData _permModeIcon(String mode) {
+    switch (mode) {
+      case 'bypass': return Icons.rocket_launch;
+      case 'accept-edits': return Icons.edit_note;
+      case 'plan': return Icons.maps_ugc;
+      default: return Icons.shield;
+    }
+  }
+
+  Future<void> _setPermissionMode(String mode) async {
+    if (_http == null) return;
+    final ok = await _http!.setPermissionMode(mode);
+    if (ok && mounted) setState(() => _permMode = mode);
+  }
   bool _responseComplete = false;
 
   ChatHistoryService? _history;
@@ -590,10 +607,32 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _copyMessage(String text) {
+    if (kIsWeb) {
+      _showCopyFallback(text);
+      return;
+    }
     HapticFeedback.selectionClick();
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)),
+    try {
+      Clipboard.setData(ClipboardData(text: text));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)),
+      );
+    } catch (_) {
+      _showCopyFallback(text);
+    }
+  }
+
+  void _showCopyFallback(String text) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('复制内容'),
+        content: SizedBox(
+          width: 400, height: 200,
+          child: SingleChildScrollView(child: SelectableText(text, style: const TextStyle(fontSize: 11, fontFamily: 'monospace'))),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))],
+      ),
     );
   }
 
@@ -641,6 +680,18 @@ class _ChatScreenState extends State<ChatScreen> {
                       ))
                   .toList(),
             ),
+          PopupMenuButton<String>(
+            icon: Icon(_permModeIcon(_permMode), size: 20),
+            tooltip: '权限模式: $_permMode',
+            initialValue: _permMode,
+            onSelected: (m) => _setPermissionMode(m),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'default', child: Text('🔒 默认 (需审批)')),
+              const PopupMenuItem(value: 'accept-edits', child: Text('📝 接受编辑 (自动)')),
+              const PopupMenuItem(value: 'bypass', child: Text('🚀 绕过 (全自动)')),
+              const PopupMenuItem(value: 'plan', child: Text('📋 计划 (只读)')),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.add_comment),
             tooltip: '新建对话',

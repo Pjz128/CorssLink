@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "username": "admin",
+      "passwordHash": "$2a$12$/zx9ju9EQeP5VyNcM3we4OboHqhcvMHfoWKBTSjuu4uBetECmdKq2",
+      "isAdmin": true,
+      "createdAt": "2026-06-23T08:20:30Z",
+      "createdBy": "system"
+    }
+  ]
+}

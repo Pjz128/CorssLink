@@ -1366,6 +1366,7 @@ func main() {
 	// Claude session management — forward to agent
 	mux.HandleFunc("/api/claude/sessions", rs.forwardToAnyAgent)
 	mux.HandleFunc("/api/claude/sessions/", rs.forwardToAnyAgent)
+	mux.HandleFunc("/api/claude/permission-mode", rs.forwardToAnyAgent)
 	// Auth endpoints
 	mux.HandleFunc("/api/auth/login", rs.handleLogin)
 	mux.HandleFunc("/api/auth/logout", rs.auth.requireAuth(rs.handleLogout))

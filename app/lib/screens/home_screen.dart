@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/pairing.dart';
+import '../services/http_service.dart';
 import '../services/chat_history_service.dart';
 import '../services/device_store.dart';
 import '../services/settings_service.dart';
@@ -23,6 +25,46 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen> {
   void refresh() {
     if (mounted) _load();
+  }
+
+  Future<void> _manualPair() async {
+    final tokenCtrl = TextEditingController();
+    final urlCtrl = TextEditingController(text: 'http://crosslink.cyou:18080');
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CrossLinkTheme.deepSpaceElevated,
+        title: const Text('手动配对'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: urlCtrl,
+            decoration: const InputDecoration(labelText: '服务器地址', hintText: 'http://crosslink.cyou:18080'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: tokenCtrl,
+            decoration: const InputDecoration(labelText: '配对 Token', hintText: '从 Agent 控制台复制'),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, {'url': urlCtrl.text.trim(), 'token': tokenCtrl.text.trim()}), child: const Text('配对')),
+        ],
+      ),
+    );
+    if (result == null || result['token']!.isEmpty) return;
+    try {
+      final device = await HttpPairing.pair(
+        serverUrl: result['url']!,
+        pairToken: result['token']!,
+        deviceName: 'Web Browser',
+      );
+      if (mounted) _onDevicePaired(device);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('配对失败: $e')));
+      }
+    }
   }
 
   final List<PairedDevice> _devices = [];
@@ -145,6 +187,18 @@ class HomeScreenState extends State<HomeScreen> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: CrossLinkTheme.spaceXl),
+            // Web 端手动配对（无摄像头）
+            if (kIsWeb)
+              FilledButton.icon(
+                onPressed: () => _manualPair(),
+                icon: const Icon(Icons.link),
+                label: const Text('手动配对'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  backgroundColor: CrossLinkTheme.linkPurple,
+                ),
+              ),
+            const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: () async {
                 HapticFeedback.mediumImpact();
@@ -155,7 +209,7 @@ class HomeScreenState extends State<HomeScreen> {
                 if (result != null) _onDevicePaired(result);
               },
               icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('扫码配对'),
+              label: const Text(kIsWeb ? '扫码配对 (移动端)' : '扫码配对'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 backgroundColor: CrossLinkTheme.linkBlue,

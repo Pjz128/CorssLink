@@ -206,7 +206,6 @@ func runRelayMode(ctx context.Context, server *agent.Server, agentKP *pairing.Ke
 	log.Printf("  Pair URL: %s", serverURL)
 	log.Printf("")
 
-	// Auto-generate QR PNG
 	qrPath := filepath.Join(os.TempDir(), "crosslink-qr.png")
 	go generateAndOpenQR(qrURI, qrPath)
 
@@ -250,7 +249,6 @@ func runLANMode(ctx context.Context, server *agent.Server, agentKP *pairing.KeyP
 	log.Printf("  Pair URL: %s/pair?token=%s", serverURL, server.PairToken())
 	log.Printf("")
 
-	// Auto-generate QR PNG and open it
 	qrPath := filepath.Join(os.TempDir(), "crosslink-qr.png")
 	go generateAndOpenQR(qrURI, qrPath)
 

@@ -30,13 +30,14 @@ type SessionInfo struct {
 
 // ClaudePlugin wraps Claude Code with multi-session support via --resume.
 type ClaudePlugin struct {
-	cfg           Config
-	activeSession *claude.Session
-	activeID      string
-	meta          plugin.AgentMeta
-	dataDir       string // Claude CLI's project data dir (~/.claude/projects/<project>)
-	mu            sync.Mutex
-	eventCb       func(ollama.BackendEvent)
+	cfg            Config
+	activeSession  *claude.Session
+	activeID       string
+	permissionMode string // default, accept-edits, bypass, plan
+	meta           plugin.AgentMeta
+	dataDir        string // Claude CLI's project data dir (~/.claude/projects/<project>)
+	mu             sync.Mutex
+	eventCb        func(ollama.BackendEvent)
 }
 
 // Config for creating a ClaudePlugin.
@@ -73,6 +74,17 @@ func New(cfg Config) (*ClaudePlugin, error) {
 	}
 
 	return p, nil
+}
+
+// claudeWorkDir returns the working directory for Claude CLI based on CLAUDE_PROJECT_DIR.
+func claudeWorkDir() string {
+	if dir := os.Getenv("CLAUDE_PROJECT_DIR"); dir != "" {
+		// If it's a real path, use it directly
+		if strings.Contains(dir, ":") || strings.Contains(dir, "\\") || strings.Contains(dir, "/") {
+			return dir
+		}
+	}
+	return "" // empty means inherit agent's CWD
 }
 
 // claudeProjectDir finds Claude CLI's session storage.
@@ -197,10 +209,12 @@ func (p *ClaudePlugin) activateSession(id string) error {
 		p.activeSession.Close()
 	}
 
-	// Build config with optional --resume
+	// Build config with optional --resume, --permission-mode, and working directory
 	cfg := claude.Config{
-		BinaryPath: p.cfg.BinaryPath,
-		Model:      p.cfg.Model,
+		BinaryPath:     p.cfg.BinaryPath,
+		Model:          p.cfg.Model,
+		PermissionMode: p.permissionMode,
+		Cwd:            claudeWorkDir(),
 	}
 	if id != "" {
 		cfg.Args = []string{"--resume", id}
@@ -276,6 +290,29 @@ func (p *ClaudePlugin) GetMessages(sessionID string) ([]ollama.Message, error) {
 		}
 	}
 	return msgs, nil
+}
+
+// SetPermissionMode changes the permission mode and restarts Claude with the new mode.
+func (p *ClaudePlugin) SetPermissionMode(mode string) error {
+	modes := map[string]bool{"default": true, "accept-edits": true, "bypass": true, "plan": true}
+	if !modes[mode] {
+		return fmt.Errorf("invalid permission mode: %s (valid: default, accept-edits, bypass, plan)", mode)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.permissionMode = mode
+	log.Printf("[claude] permission mode set to: %s", mode)
+	return p.activateSession(p.activeID) // restart with new mode
+}
+
+// PermissionMode returns the current permission mode.
+func (p *ClaudePlugin) PermissionMode() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.permissionMode == "" {
+		return "default"
+	}
+	return p.permissionMode
 }
 
 // ---- AgentPlugin interface ----

@@ -186,11 +186,17 @@ func (s *Session) start() error {
 		"--verbose",
 		"--include-partial-messages",
 		"--model", s.model,
+		}
+		if s.cfg.PermissionMode != "" && s.cfg.PermissionMode != "default" {
+			args = append(args, "--permission-mode", s.cfg.PermissionMode)
 	}
 	// Append extra args (e.g. --resume <session-id>)
 	args = append(args, s.cfg.Args...)
 
 	s.cmd = exec.CommandContext(s.ctx, s.cfg.BinaryPath, args...)
+	if s.cfg.Cwd != "" {
+		s.cmd.Dir = s.cfg.Cwd
+	}
 
 	var err error
 	s.stdin, err = s.cmd.StdinPipe()

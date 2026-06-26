@@ -92,6 +92,7 @@ func NewServer(cfg Config) (*Server, error) {
 	// Claude session management (plugin-specific, not coupled to other agents)
 	mux.HandleFunc("/api/claude/sessions", s.handleClaudeSessions)
 	mux.HandleFunc("/api/claude/sessions/", s.handleClaudeSessionByID)
+	mux.HandleFunc("/api/claude/permission-mode", s.handleClaudePermissionMode)
 
 	s.srv = &http.Server{Addr: cfg.Addr, Handler: corsMiddleware(mux)}
 	return s, nil
@@ -588,6 +589,34 @@ func (s *Server) handleClaudeSessionByID(w http.ResponseWriter, r *http.Request)
 }
 
 // ---- helpers ----
+
+func (s *Server) handleClaudePermissionMode(w http.ResponseWriter, r *http.Request) {
+	cp, ok := s.getClaudePlugin()
+	if !ok {
+		jsonErr(w, 503, "claude agent not available")
+		return
+	}
+	if r.Method == http.MethodGet {
+		jsonOK(w, map[string]any{"mode": cp.PermissionMode()})
+		return
+	}
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method not allowed")
+		return
+	}
+	var req struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Mode == "" {
+		jsonErr(w, 400, "missing mode")
+		return
+	}
+	if err := cp.SetPermissionMode(req.Mode); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	jsonOK(w, map[string]any{"mode": cp.PermissionMode()})
+}
 
 func (s *Server) resolveBackend(agentType string) ollama.Backend {
 	if s.cfg.Pool == nil {

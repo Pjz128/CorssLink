@@ -9,9 +9,11 @@ import (
 
 // Config holds parameters for launching a Claude CLI subprocess.
 type Config struct {
-	BinaryPath string   // Path to claude executable
-	Model      string   // Default model (sonnet, opus, haiku)
-	Args       []string // Extra args passed to claude
+	BinaryPath     string   // Path to claude executable
+	Model          string   // Default model (sonnet, opus, haiku)
+	Args           []string // Extra args passed to claude
+	PermissionMode string   // Permission mode: default, accept-edits, bypass, plan
+	Cwd            string   // Working directory (determines Claude project)
 }
 
 // DefaultConfig returns a Config with sensible defaults.

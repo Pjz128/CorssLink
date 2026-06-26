@@ -1,3 +1,4 @@
+import "package:flutter/foundation.dart";
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -78,15 +79,43 @@ class _ToolResultCardState extends State<ToolResultCard>
   }
 
   void _copy() {
-    Clipboard.setData(ClipboardData(text: widget.output));
-    HapticFeedback.selectionClick();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('已复制'),
-        duration: Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (kIsWeb) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('复制内容'),
+          content: SizedBox(
+            width: 400, height: 200,
+            child: SingleChildScrollView(child: SelectableText(widget.output, style: const TextStyle(fontSize: 11, fontFamily: 'monospace'))),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))],
+        ),
+      );
+      return;
+    }
+    try {
+      Clipboard.setData(ClipboardData(text: widget.output));
+      HapticFeedback.selectionClick();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('已复制'),
+          duration: Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('手动复制'),
+          content: SizedBox(
+            width: 400, height: 200,
+            child: SingleChildScrollView(child: SelectableText(widget.output, style: const TextStyle(fontSize: 11, fontFamily: 'monospace'))),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))],
+        ),
+      );
+    }
   }
 
   @override
