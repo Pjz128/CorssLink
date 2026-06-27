@@ -95,9 +95,11 @@ func claudeProjectDir() string {
 	if dir := os.Getenv("CLAUDE_PROJECT_DIR"); dir != "" {
 		// If it looks like a real path, transform it like Claude CLI does
 		if strings.Contains(dir, ":") || strings.Contains(dir, "\\") || strings.Contains(dir, "/") {
-			name := strings.NewReplacer(
+			// Claude CLI: C:\path\dir -> C--path-dir
+			name := strings.Replace(dir, ":\\", "--", 1)
+			name = strings.NewReplacer(
 				":", "", "\\", "-", "/", "-", " ", "-",
-			).Replace(dir)
+			).Replace(name)
 			name = strings.TrimPrefix(name, "-")
 			return filepath.Join(home, ".claude", "projects", name)
 		}
@@ -173,18 +175,49 @@ func extractSessionName(path string) string {
 	defer f.Close()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		var msg map[string]any
-		if err := json.Unmarshal(sc.Bytes(), &msg); err != nil {
+		var line struct {
+			Type    string `json:"type"`
+			Message struct {
+				Role    string `json:"role"`
+				Content any    `json:"content"`
+			} `json:"message"`
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(sc.Bytes(), &line); err != nil {
 			continue
 		}
-		if msg["role"] == "user" {
-			if content, ok := msg["content"].(string); ok && content != "" {
-				// Take first 40 chars as title
-				content = strings.TrimSpace(content)
-				if len(content) > 40 {
-					content = content[:40] + "…"
+		if line.Type == "rename" {
+			// /rename command: extract new name from content
+			if name, ok := line.Message.Content.(string); ok && name != "" {
+				return name
+			}
+		}
+		if line.Type == "user" && line.Message.Role == "user" {
+			// Extract content text
+			var text string
+			switch c := line.Message.Content.(type) {
+			case string:
+				text = c
+			case []interface{}:
+				for _, block := range c {
+					if b, ok := block.(map[string]interface{}); ok {
+						if t, _ := b["type"].(string); t == "text" {
+							if txt, ok := b["text"].(string); ok {
+								text += txt
+							}
+						}
+					}
 				}
-				return content
+			}
+			if text == "" {
+				text = line.Content
+			}
+			if text != "" {
+				text = strings.TrimSpace(text)
+				if len(text) > 40 {
+					text = text[:40] + "…"
+				}
+				return text
 			}
 		}
 	}
@@ -278,15 +311,45 @@ func (p *ClaudePlugin) GetMessages(sessionID string) ([]ollama.Message, error) {
 	var msgs []ollama.Message
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		var m struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
+		var line struct {
+			Type    string `json:"type"`
+			Message struct {
+				Role    string        `json:"role"`
+				Content []interface{} `json:"content"` // assistant: content blocks
+			} `json:"message"`
+			Content string `json:"content"` // user: plain text at top level (fallback)
 		}
-		if err := json.Unmarshal(sc.Bytes(), &m); err != nil {
+		if err := json.Unmarshal(sc.Bytes(), &line); err != nil {
 			continue
 		}
-		if m.Role == "user" || m.Role == "assistant" {
-			msgs = append(msgs, ollama.Message{Role: m.Role, Content: m.Content})
+		if line.Type != "user" && line.Type != "assistant" {
+			continue
+		}
+
+		role := line.Message.Role
+		if role == "" {
+			role = line.Type
+		}
+
+		var content string
+		if len(line.Message.Content) > 0 {
+			// Assistant: extract text from content blocks
+			for _, block := range line.Message.Content {
+				if b, ok := block.(map[string]interface{}); ok {
+					if t, _ := b["type"].(string); t == "text" {
+						if c, ok := b["text"].(string); ok {
+							content += c
+						}
+					}
+				}
+			}
+		}
+		if content == "" {
+			content = line.Content // fallback to top-level content string
+		}
+
+		if role == "user" || role == "assistant" {
+			msgs = append(msgs, ollama.Message{Role: role, Content: content})
 		}
 	}
 	return msgs, nil
