@@ -91,7 +91,7 @@ class _ClaudeSessionListScreenState extends State<ClaudeSessionListScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: CrossLinkTheme.deepSpaceElevated,
+        backgroundColor: CrossLinkTheme.surface,
         title: const Text('新建会话'),
         content: TextField(
           controller: ctrl,
@@ -129,9 +129,9 @@ class _ClaudeSessionListScreenState extends State<ClaudeSessionListScreen> {
     final inactive = _sessions.where((s) => s['active'] != true).toList();
 
     return Scaffold(
-      backgroundColor: CrossLinkTheme.deepSpace,
+      backgroundColor: CrossLinkTheme.bg,
       appBar: AppBar(
-        backgroundColor: CrossLinkTheme.deepSpace.withAlpha(220),
+        backgroundColor: CrossLinkTheme.bg.withAlpha(220),
         title: const Text('Claude 会话'),
         actions: [
           IconButton(icon: const Icon(Icons.add, size: 22), onPressed: _onCreate),
@@ -140,7 +140,7 @@ class _ClaudeSessionListScreenState extends State<ClaudeSessionListScreen> {
       body: _loading
           ? const Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                CircularProgressIndicator(color: CrossLinkTheme.linkCyan),
+                CircularProgressIndicator(color: CrossLinkTheme.accent),
                 SizedBox(height: 16),
                 Text('正在读取电脑端会话…', style: TextStyle(color: Colors.white38, fontSize: 13)),
                 SizedBox(height: 4),
@@ -207,13 +207,13 @@ class _ClaudeSessionListScreenState extends State<ClaudeSessionListScreen> {
 
     return Card(
       color: isActive
-          ? CrossLinkTheme.successGreen.withAlpha(12)
-          : CrossLinkTheme.panel.withAlpha(200),
+          ? CrossLinkTheme.success.withAlpha(12)
+          : CrossLinkTheme.surface.withAlpha(200),
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusSm),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.rSm),
         side: BorderSide(
-          color: isActive ? CrossLinkTheme.successGreen.withAlpha(50) : Colors.white10,
+          color: isActive ? CrossLinkTheme.success.withAlpha(50) : Colors.white10,
           width: 0.5,
         ),
       ),
@@ -223,7 +223,7 @@ class _ClaudeSessionListScreenState extends State<ClaudeSessionListScreen> {
         leading: Icon(
           isActive ? Icons.folder_open : Icons.folder_outlined,
           size: 22,
-          color: isActive ? CrossLinkTheme.successGreen : Colors.white38,
+          color: isActive ? CrossLinkTheme.success : Colors.white38,
         ),
         title: Text(name, style: TextStyle(fontSize: 14, fontWeight: isActive ? FontWeight.w600 : FontWeight.w400)),
         subtitle: Text(model, style: const TextStyle(fontSize: 11, color: Colors.white38)),
@@ -234,10 +234,10 @@ class _ClaudeSessionListScreenState extends State<ClaudeSessionListScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: CrossLinkTheme.successGreen.withAlpha(25),
+                  color: CrossLinkTheme.success.withAlpha(25),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text('活跃', style: TextStyle(fontSize: 9, color: CrossLinkTheme.successGreen)),
+                child: const Text('活跃', style: TextStyle(fontSize: 9, color: CrossLinkTheme.success)),
               ),
             if (!isActive)
               IconButton(

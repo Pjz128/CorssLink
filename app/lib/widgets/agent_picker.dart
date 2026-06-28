@@ -31,24 +31,24 @@ class AgentPicker extends StatelessWidget {
       children: [
         for (final a in agents)
           Padding(
-            padding: const EdgeInsets.only(right: CrossLinkTheme.spaceXs),
+            padding: const EdgeInsets.only(right: CrossLinkTheme.sXs),
             child: InkWell(
-              borderRadius: BorderRadius.circular(CrossLinkTheme.radiusXl),
+              borderRadius: BorderRadius.circular(CrossLinkTheme.rXl),
               onTap: () {
                 final firstModel = a.models.isNotEmpty ? a.models.first.name : '';
                 onChanged((a.type, firstModel));
               },
               child: AnimatedContainer(
-                duration: CrossLinkTheme.durationFast,
+                duration: CrossLinkTheme.fast,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: a.type == selectedAgent
-                      ? CrossLinkTheme.linkBlue.withAlpha(40)
-                      : CrossLinkTheme.panel.withAlpha(120),
-                  borderRadius: BorderRadius.circular(CrossLinkTheme.radiusXl),
+                      ? CrossLinkTheme.accent.withAlpha(40)
+                      : CrossLinkTheme.surface.withAlpha(120),
+                  borderRadius: BorderRadius.circular(CrossLinkTheme.rXl),
                   border: Border.all(
                     color: a.type == selectedAgent
-                        ? CrossLinkTheme.linkCyan.withAlpha(120)
+                        ? CrossLinkTheme.accent.withAlpha(120)
                         : cs.outlineVariant.withAlpha(60),
                     width: 0.5,
                   ),
@@ -59,18 +59,18 @@ class AgentPicker extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: a.type == selectedAgent ? FontWeight.w600 : FontWeight.normal,
                     color: a.type == selectedAgent
-                        ? CrossLinkTheme.linkCyan
+                        ? CrossLinkTheme.accent
                         : cs.onSurface.withAlpha(180),
                   ),
                 ),
               ),
             ),
           ),
-        const SizedBox(width: CrossLinkTheme.spaceXs),
+        const SizedBox(width: CrossLinkTheme.sXs),
         if (models.isNotEmpty)
           PopupMenuButton<String>(
             constraints: const BoxConstraints(maxWidth: 240),
-            color: CrossLinkTheme.panel,
+            color: CrossLinkTheme.surface,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -87,7 +87,7 @@ class AgentPicker extends StatelessWidget {
                       value: m.name,
                       child: Row(children: [
                         if (m.name == selectedModel)
-                          const Icon(Icons.check, size: 16, color: CrossLinkTheme.linkCyan)
+                          const Icon(Icons.check, size: 16, color: CrossLinkTheme.accent)
                         else
                           const SizedBox(width: 16),
                         const SizedBox(width: 8),

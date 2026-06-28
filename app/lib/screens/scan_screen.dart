@@ -23,10 +23,10 @@ class _ScanScreenState extends State<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CrossLinkTheme.deepSpace,
+      backgroundColor: CrossLinkTheme.bg,
       appBar: AppBar(
         title: const Text('扫码配对'),
-        backgroundColor: CrossLinkTheme.deepSpace.withAlpha(200),
+        backgroundColor: CrossLinkTheme.bg.withAlpha(200),
       ),
       body: Stack(
         fit: StackFit.expand,
@@ -97,9 +97,9 @@ class _ScanScreenState extends State<ScanScreen> {
       context: context,
       isDismissible: false,
       isScrollControlled: true,
-      backgroundColor: CrossLinkTheme.deepSpaceElevated,
+      backgroundColor: CrossLinkTheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(CrossLinkTheme.radiusLg)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(CrossLinkTheme.rLg)),
       ),
       builder: (ctx) => _PairingSheet(qr: qr),
     ).then((device) {
@@ -219,7 +219,7 @@ class _PairingSheetState extends State<_PairingSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.all(CrossLinkTheme.spaceXxl),
+      padding: const EdgeInsets.all(CrossLinkTheme.sXxl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -229,16 +229,16 @@ class _PairingSheetState extends State<_PairingSheet> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: _done
-                  ? CrossLinkTheme.successGreen.withAlpha(40)
+                  ? CrossLinkTheme.success.withAlpha(40)
                   : _failed
-                      ? CrossLinkTheme.errorRed.withAlpha(40)
-                      : CrossLinkTheme.linkBlue.withAlpha(40),
+                      ? CrossLinkTheme.error.withAlpha(40)
+                      : CrossLinkTheme.accent.withAlpha(40),
             ),
             child: Center(
               child: _done
-                  ? const Icon(Icons.check_circle, color: CrossLinkTheme.successGreen, size: 28)
+                  ? const Icon(Icons.check_circle, color: CrossLinkTheme.success, size: 28)
                   : _failed
-                      ? const Icon(Icons.error_outline, color: CrossLinkTheme.errorRed, size: 28)
+                      ? const Icon(Icons.error_outline, color: CrossLinkTheme.error, size: 28)
                       : const SizedBox(
                           width: 24,
                           height: 24,
@@ -246,18 +246,18 @@ class _PairingSheetState extends State<_PairingSheet> {
                         ),
             ),
           ),
-          const SizedBox(height: CrossLinkTheme.spaceLg),
+          const SizedBox(height: CrossLinkTheme.sLg),
           Text(
             _done ? '配对成功' : _failed ? '配对失败' : '正在配对…',
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: CrossLinkTheme.spaceSm),
+          const SizedBox(height: CrossLinkTheme.sSm),
           Text(
             _status,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          const SizedBox(height: CrossLinkTheme.spaceXs),
+          const SizedBox(height: CrossLinkTheme.sXs),
           Text(
             'Agent: ${widget.qr.peerId}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -265,7 +265,7 @@ class _PairingSheetState extends State<_PairingSheet> {
                 ),
           ),
           if (_result != null) ...[
-            const SizedBox(height: CrossLinkTheme.spaceSm),
+            const SizedBox(height: CrossLinkTheme.sSm),
             Text(
               '密钥：${_result!.token.substring(0, 16)}…',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -274,7 +274,7 @@ class _PairingSheetState extends State<_PairingSheet> {
                   ),
             ),
           ],
-          const SizedBox(height: CrossLinkTheme.spaceXl),
+          const SizedBox(height: CrossLinkTheme.sXl),
           Row(
             children: [
               Expanded(
@@ -284,7 +284,7 @@ class _PairingSheetState extends State<_PairingSheet> {
                 ),
               ),
               if (_done && _result != null) ...[
-                const SizedBox(width: CrossLinkTheme.spaceMd),
+                const SizedBox(width: CrossLinkTheme.sMd),
                 Expanded(
                   child: FilledButton(
                     onPressed: () => Navigator.pop(context, _result),

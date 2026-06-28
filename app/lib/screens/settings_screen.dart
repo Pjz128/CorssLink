@@ -21,12 +21,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool? _serverReachable;
 
   static const _themeColors = <_ThemeOption>[
-    _ThemeOption('电光青', CrossLinkTheme.linkCyan),
-    _ThemeOption('链路蓝', CrossLinkTheme.linkBlue),
-    _ThemeOption('深空紫', CrossLinkTheme.linkPurple),
-    _ThemeOption('极光绿', CrossLinkTheme.successGreen),
-    _ThemeOption('警报橙', CrossLinkTheme.alertAmber),
-    _ThemeOption('深绯红', CrossLinkTheme.errorRed),
+    _ThemeOption('链路蓝', const Color(0xFF4C82FB)),
+    _ThemeOption('墨玉绿', const Color(0xFF34C759)),
+    _ThemeOption('琥珀橙', const Color(0xFFFF9F0A)),
+    _ThemeOption('深绯红', const Color(0xFFFF453A)),
+    _ThemeOption('紫罗兰', const Color(0xFFAF52DE)),
+    _ThemeOption('青金石', const Color(0xFF5AC8FA)),
   ];
 
   @override
@@ -77,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final connected = _serverReachable == true;
 
     return Scaffold(
-      backgroundColor: CrossLinkTheme.deepSpace,
+      backgroundColor: CrossLinkTheme.bg,
       appBar: AppBar(
         toolbarHeight: 0,
         backgroundColor: Colors.transparent,
@@ -89,11 +89,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : SafeArea(
               child: ListView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(CrossLinkTheme.spaceLg),
+                padding: const EdgeInsets.all(CrossLinkTheme.sLg),
                 children: [
                   // ── 连接状态卡片 ──
                   _statusCard(context, connected),
-                  const SizedBox(height: CrossLinkTheme.spaceXl),
+                  const SizedBox(height: CrossLinkTheme.sXl),
 
                   // ── 服务器 ──
                   _sectionHeader('连接'),
@@ -123,7 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onSaved: (v) => setState(() => _settings!.agentId = v),
                     ),
                   ),
-                  const SizedBox(height: CrossLinkTheme.spaceXl),
+                  const SizedBox(height: CrossLinkTheme.sXl),
 
                   // ── 模型 ──
                   _sectionHeader('模型'),
@@ -138,11 +138,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onSaved: (v) => setState(() => _settings!.model = v),
                     ),
                   ),
-                  const SizedBox(height: CrossLinkTheme.spaceXl),
+                  const SizedBox(height: CrossLinkTheme.sXl),
 
                   // ── 主题色 ──
                   _sectionHeader('主题色'),
-                  const SizedBox(height: CrossLinkTheme.spaceSm),
+                  const SizedBox(height: CrossLinkTheme.sSm),
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
@@ -156,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Tooltip(
                           message: opt.label,
                           child: AnimatedContainer(
-                            duration: CrossLinkTheme.durationFast,
+                            duration: CrossLinkTheme.fast,
                             width: 48,
                             height: 48,
                             decoration: BoxDecoration(
@@ -183,12 +183,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: CrossLinkTheme.spaceXl),
+                  const SizedBox(height: CrossLinkTheme.sXl),
 
                   // ── 关于 ──
                   _sectionHeader('关于'),
                   _aboutCard(context),
-                  const SizedBox(height: CrossLinkTheme.spaceXxl),
+                  const SizedBox(height: CrossLinkTheme.sXxl),
                 ],
               ),
             ),
@@ -199,41 +199,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Card(
       elevation: 0,
       color: connected
-          ? CrossLinkTheme.successGreen.withAlpha(15)
-          : CrossLinkTheme.panel.withAlpha(200),
+          ? CrossLinkTheme.success.withAlpha(15)
+          : CrossLinkTheme.surface.withAlpha(200),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
         side: BorderSide(
           color: connected
-              ? CrossLinkTheme.successGreen.withAlpha(60)
+              ? CrossLinkTheme.success.withAlpha(60)
               : Colors.white12,
           width: 0.5,
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+        padding: const EdgeInsets.all(CrossLinkTheme.sMd),
         child: Row(
           children: [
             AnimatedContainer(
-              duration: CrossLinkTheme.durationNormal,
+              duration: CrossLinkTheme.normal,
               width: 10,
               height: 10,
               decoration: BoxDecoration(
                 color: connected
-                    ? CrossLinkTheme.successGreen
-                    : CrossLinkTheme.panelHover,
+                    ? CrossLinkTheme.success
+                    : CrossLinkTheme.surfaceHover,
                 shape: BoxShape.circle,
                 boxShadow: connected
                     ? [
                         BoxShadow(
-                          color: CrossLinkTheme.successGreen.withAlpha(100),
+                          color: CrossLinkTheme.success.withAlpha(100),
                           blurRadius: 8,
                         ),
                       ]
                     : null,
               ),
             ),
-            const SizedBox(width: CrossLinkTheme.spaceMd),
+            const SizedBox(width: CrossLinkTheme.sMd),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,7 +244,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                       color: connected
-                          ? CrossLinkTheme.successGreen
+                          ? CrossLinkTheme.success
                           : Colors.white70,
                     ),
                   ),
@@ -268,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.refresh_rounded, size: 20),
-              color: connected ? CrossLinkTheme.successGreen : Colors.white38,
+              color: connected ? CrossLinkTheme.success : Colors.white38,
             ),
           ],
         ),
@@ -278,12 +278,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _sectionHeader(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: CrossLinkTheme.spaceSm),
+      padding: const EdgeInsets.only(bottom: CrossLinkTheme.sSm),
       child: Text(
         text,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
-              color: CrossLinkTheme.linkCyan,
+              color: CrossLinkTheme.accent,
               fontSize: 13,
               letterSpacing: 0.5,
             ),
@@ -300,24 +300,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final cs = Theme.of(context).colorScheme;
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: CrossLinkTheme.spaceSm),
-      color: CrossLinkTheme.panel.withAlpha(200),
+      margin: const EdgeInsets.only(bottom: CrossLinkTheme.sSm),
+      color: CrossLinkTheme.surface.withAlpha(200),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
         side: BorderSide(color: cs.outlineVariant.withAlpha(50), width: 0.5),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: CrossLinkTheme.spaceMd,
+          horizontal: CrossLinkTheme.sMd,
           vertical: 2,
         ),
         leading: Container(
           width: 36, height: 36,
           decoration: BoxDecoration(
-            color: CrossLinkTheme.linkCyan.withAlpha(15),
+            color: CrossLinkTheme.accent.withAlpha(15),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: CrossLinkTheme.linkCyan, size: 18),
+          child: Icon(icon, color: CrossLinkTheme.accent, size: 18),
         ),
         title: Text(title, style: Theme.of(context).textTheme.bodyMedium),
         subtitle: Text(
@@ -338,23 +338,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _aboutCard(BuildContext context) {
     return Card(
       elevation: 0,
-      color: CrossLinkTheme.panel.withAlpha(200),
+      color: CrossLinkTheme.surface.withAlpha(200),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
         side: BorderSide(color: Colors.white10, width: 0.5),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+        padding: const EdgeInsets.all(CrossLinkTheme.sMd),
         child: Row(
           children: [
             Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(CrossLinkTheme.radiusSm),
+                borderRadius: BorderRadius.circular(CrossLinkTheme.rSm),
                 gradient: const LinearGradient(colors: [
-                  CrossLinkTheme.linkCyan,
-                  CrossLinkTheme.linkBlue,
+                  CrossLinkTheme.accent,
+                  CrossLinkTheme.accent,
                 ]),
               ),
               child: SvgPicture.asset(
@@ -363,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 height: 26,
               ),
             ),
-            const SizedBox(width: CrossLinkTheme.spaceMd),
+            const SizedBox(width: CrossLinkTheme.sMd),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -391,7 +391,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: CrossLinkTheme.deepSpaceElevated,
+        backgroundColor: CrossLinkTheme.surface,
         title: Text(title, style: const TextStyle(fontSize: 16)),
         content: TextField(
           controller: ctrl,
@@ -402,7 +402,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             hintStyle: TextStyle(color: Colors.white24, fontFamily: 'monospace', fontSize: 13),
             border: const OutlineInputBorder(),
             filled: true,
-            fillColor: CrossLinkTheme.deepSpace,
+            fillColor: CrossLinkTheme.bg,
           ),
         ),
         actions: [

@@ -35,7 +35,7 @@ class _ThinkingBlockState extends State<ThinkingBlock>
     super.initState();
     _iconCtrl = AnimationController(
       vsync: this,
-      duration: CrossLinkTheme.durationFast,
+      duration: CrossLinkTheme.fast,
     );
     _iconTurns = Tween(begin: 0.0, end: 0.5).animate(_iconCtrl);
     _expanded = widget.isStreaming && !widget.collapsed;
@@ -92,11 +92,11 @@ class _ThinkingBlockState extends State<ThinkingBlock>
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: CrossLinkTheme.spaceMd),
+      padding: const EdgeInsets.only(bottom: CrossLinkTheme.sMd),
       child: Container(
         decoration: BoxDecoration(
-          color: CrossLinkTheme.panel.withAlpha(160),
-          borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+          color: CrossLinkTheme.surface.withAlpha(160),
+          borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
           border: Border.all(
             color: cs.outlineVariant.withAlpha(60),
             width: 0.5,
@@ -107,12 +107,12 @@ class _ThinkingBlockState extends State<ThinkingBlock>
           mainAxisSize: MainAxisSize.min,
           children: [
             InkWell(
-              borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+              borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
               onTap: _toggle,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: CrossLinkTheme.spaceMd,
-                  vertical: CrossLinkTheme.spaceSm,
+                  horizontal: CrossLinkTheme.sMd,
+                  vertical: CrossLinkTheme.sSm,
                 ),
                 child: Row(
                   children: [
@@ -122,7 +122,7 @@ class _ThinkingBlockState extends State<ThinkingBlock>
                         height: 12,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
-                          color: CrossLinkTheme.linkCyan.withAlpha(180),
+                          color: CrossLinkTheme.accent.withAlpha(180),
                         ),
                       )
                     else
@@ -131,7 +131,7 @@ class _ThinkingBlockState extends State<ThinkingBlock>
                         size: 14,
                         color: cs.onSurface.withAlpha(140),
                       ),
-                    const SizedBox(width: CrossLinkTheme.spaceSm),
+                    const SizedBox(width: CrossLinkTheme.sSm),
                     Text(
                       widget.isStreaming ? '思考中…' : '思考完成',
                       style: TextStyle(
@@ -158,16 +158,16 @@ class _ThinkingBlockState extends State<ThinkingBlock>
               ),
             ),
             AnimatedSize(
-              duration: CrossLinkTheme.durationNormal,
-              curve: CrossLinkTheme.curveDefault,
+              duration: CrossLinkTheme.normal,
+              curve: CrossLinkTheme.curve,
               alignment: Alignment.topCenter,
               child: _expanded
                   ? Padding(
                       padding: const EdgeInsets.fromLTRB(
-                        CrossLinkTheme.spaceMd,
+                        CrossLinkTheme.sMd,
                         0,
-                        CrossLinkTheme.spaceMd,
-                        CrossLinkTheme.spaceMd,
+                        CrossLinkTheme.sMd,
+                        CrossLinkTheme.sMd,
                       ),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxHeight: _maxContentHeight),

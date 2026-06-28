@@ -66,14 +66,14 @@ class _TypingIndicatorState extends State<TypingIndicator>
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: CrossLinkTheme.spaceMd),
+        margin: const EdgeInsets.only(bottom: CrossLinkTheme.sMd),
         padding: const EdgeInsets.symmetric(
-          horizontal: CrossLinkTheme.spaceMd,
-          vertical: CrossLinkTheme.spaceSm,
+          horizontal: CrossLinkTheme.sMd,
+          vertical: CrossLinkTheme.sSm,
         ),
         decoration: BoxDecoration(
-          color: CrossLinkTheme.panel.withAlpha(180),
-          borderRadius: BorderRadius.circular(CrossLinkTheme.radiusLg),
+          color: CrossLinkTheme.surface.withAlpha(180),
+          borderRadius: BorderRadius.circular(CrossLinkTheme.rLg),
           border: Border.all(
             color: cs.outlineVariant.withAlpha(50),
             width: 0.5,
@@ -92,11 +92,11 @@ class _TypingIndicatorState extends State<TypingIndicator>
                     height: 7,
                     margin: const EdgeInsets.symmetric(horizontal: 2.5),
                     decoration: BoxDecoration(
-                      color: CrossLinkTheme.linkCyan,
+                      color: CrossLinkTheme.accent,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: CrossLinkTheme.linkCyan.withAlpha(100),
+                          color: CrossLinkTheme.accent.withAlpha(100),
                           blurRadius: 6,
                         ),
                       ],
@@ -106,7 +106,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
               );
             }),
             if (widget.label != null) ...[
-              const SizedBox(width: CrossLinkTheme.spaceSm),
+              const SizedBox(width: CrossLinkTheme.sSm),
               Text(
                 widget.label!,
                 style: TextStyle(

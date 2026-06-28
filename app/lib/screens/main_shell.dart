@@ -49,9 +49,9 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: AnimatedSwitcher(
-        duration: CrossLinkTheme.durationNormal,
-        switchInCurve: CrossLinkTheme.curveDefault,
-        switchOutCurve: CrossLinkTheme.curveDefault,
+        duration: CrossLinkTheme.normal,
+        switchInCurve: CrossLinkTheme.curve,
+        switchOutCurve: CrossLinkTheme.curve,
         transitionBuilder: (child, animation) {
           return FadeTransition(
             opacity: animation,
@@ -64,10 +64,10 @@ class _MainShellState extends State<MainShell> {
         child: _buildPage(_currentIndex),
       ),
       bottomNavigationBar: NavigationBar(
-        backgroundColor: CrossLinkTheme.deepSpaceElevated.withAlpha(240),
+        backgroundColor: CrossLinkTheme.surface.withAlpha(240),
         selectedIndex: _currentIndex,
         onDestinationSelected: _onTabSelected,
-        animationDuration: CrossLinkTheme.durationNormal,
+        animationDuration: CrossLinkTheme.normal,
         destinations: _tabs
             .map((t) => NavigationDestination(
                   icon: Icon(t.icon),

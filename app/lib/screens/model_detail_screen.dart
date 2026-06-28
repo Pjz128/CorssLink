@@ -14,7 +14,7 @@ class ModelDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(model.name),
-        backgroundColor: CrossLinkTheme.deepSpaceElevated,
+        backgroundColor: CrossLinkTheme.surface,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

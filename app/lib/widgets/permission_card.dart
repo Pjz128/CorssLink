@@ -38,7 +38,7 @@ class _PermissionCardState extends State<PermissionCard>
     super.initState();
     _iconCtrl = AnimationController(
       vsync: this,
-      duration: CrossLinkTheme.durationFast,
+      duration: CrossLinkTheme.fast,
     );
     _iconTurns = Tween(begin: 0.0, end: 0.5).animate(_iconCtrl);
     _iconCtrl.forward();
@@ -80,15 +80,15 @@ class _PermissionCardState extends State<PermissionCard>
     final hasInput = event.input != null && event.input!.isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: CrossLinkTheme.spaceMd),
+      padding: const EdgeInsets.only(bottom: CrossLinkTheme.sMd),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
         child: Container(
           decoration: BoxDecoration(
-            color: CrossLinkTheme.panel.withAlpha(220),
-            borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+            color: CrossLinkTheme.surface.withAlpha(220),
+            borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
             border: Border.all(color: color.withAlpha(80), width: 1),
-            boxShadow: CrossLinkTheme.panelShadow,
+            boxShadow: CrossLinkTheme.cardShadow,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,9 +103,9 @@ class _PermissionCardState extends State<PermissionCard>
                     Expanded(
                       child: InkWell(
                         onTap: hasInput ? _toggle : null,
-                        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+                        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
                         child: Padding(
-                          padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+                          padding: const EdgeInsets.all(CrossLinkTheme.sMd),
                           child: Row(
                             children: [
                               Container(
@@ -113,11 +113,11 @@ class _PermissionCardState extends State<PermissionCard>
                                 height: 36,
                                 decoration: BoxDecoration(
                                   color: color.withAlpha(25),
-                                  borderRadius: BorderRadius.circular(CrossLinkTheme.radiusSm),
+                                  borderRadius: BorderRadius.circular(CrossLinkTheme.rSm),
                                 ),
                                 child: Icon(Icons.shield_outlined, size: 20, color: color),
                               ),
-                              const SizedBox(width: CrossLinkTheme.spaceSm),
+                              const SizedBox(width: CrossLinkTheme.sSm),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,23 +166,23 @@ class _PermissionCardState extends State<PermissionCard>
 
               // 输入详情
               AnimatedSize(
-                duration: CrossLinkTheme.durationNormal,
-                curve: CrossLinkTheme.curveDefault,
+                duration: CrossLinkTheme.normal,
+                curve: CrossLinkTheme.curve,
                 alignment: Alignment.topCenter,
                 child: _expanded && hasInput
                     ? Padding(
                         padding: const EdgeInsets.fromLTRB(
-                          CrossLinkTheme.spaceMd,
+                          CrossLinkTheme.sMd,
                           0,
-                          CrossLinkTheme.spaceMd,
-                          CrossLinkTheme.spaceMd,
+                          CrossLinkTheme.sMd,
+                          CrossLinkTheme.sMd,
                         ),
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(CrossLinkTheme.spaceSm),
+                          padding: const EdgeInsets.all(CrossLinkTheme.sSm),
                           decoration: BoxDecoration(
-                            color: CrossLinkTheme.deepSpace.withAlpha(160),
-                            borderRadius: BorderRadius.circular(CrossLinkTheme.radiusSm),
+                            color: CrossLinkTheme.bg.withAlpha(160),
+                            borderRadius: BorderRadius.circular(CrossLinkTheme.rSm),
                             border: Border.all(
                               color: cs.outlineVariant.withAlpha(40),
                               width: 0.5,
@@ -207,10 +207,10 @@ class _PermissionCardState extends State<PermissionCard>
               if (!_responded)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    CrossLinkTheme.spaceMd,
+                    CrossLinkTheme.sMd,
                     0,
-                    CrossLinkTheme.spaceMd,
-                    CrossLinkTheme.spaceMd,
+                    CrossLinkTheme.sMd,
+                    CrossLinkTheme.sMd,
                   ),
                   child: Row(
                     children: [
@@ -218,16 +218,16 @@ class _PermissionCardState extends State<PermissionCard>
                         child: _ChoiceButton(
                           label: '允许此次',
                           icon: Icons.check,
-                          color: CrossLinkTheme.successGreen,
+                          color: CrossLinkTheme.success,
                           onTap: () => _handleChoice('allow'),
                         ),
                       ),
-                      const SizedBox(width: CrossLinkTheme.spaceSm),
+                      const SizedBox(width: CrossLinkTheme.sSm),
                       Expanded(
                         child: _ChoiceButton(
                           label: '拒绝',
                           icon: Icons.close,
-                          color: CrossLinkTheme.errorRed,
+                          color: CrossLinkTheme.error,
                           onTap: () => _handleChoice('deny'),
                         ),
                       ),
@@ -237,10 +237,10 @@ class _PermissionCardState extends State<PermissionCard>
               else
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    CrossLinkTheme.spaceMd,
+                    CrossLinkTheme.sMd,
                     0,
-                    CrossLinkTheme.spaceMd,
-                    CrossLinkTheme.spaceMd,
+                    CrossLinkTheme.sMd,
+                    CrossLinkTheme.sMd,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -257,7 +257,7 @@ class _PermissionCardState extends State<PermissionCard>
                           size: 18,
                           color: cs.onSurface.withAlpha(150),
                         ),
-                      const SizedBox(width: CrossLinkTheme.spaceSm),
+                      const SizedBox(width: CrossLinkTheme.sSm),
                       Text(
                         _sending ? '发送中…' : '已回复',
                         style: TextStyle(
@@ -299,7 +299,7 @@ class _ChoiceButton extends StatelessWidget {
           foregroundColor: color,
           side: BorderSide(color: color.withAlpha(100)),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(CrossLinkTheme.radiusSm),
+            borderRadius: BorderRadius.circular(CrossLinkTheme.rSm),
           ),
           padding: const EdgeInsets.symmetric(vertical: 8),
           elevation: 0,

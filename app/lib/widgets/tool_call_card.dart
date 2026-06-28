@@ -39,7 +39,7 @@ class _ToolCallCardState extends State<ToolCallCard>
     super.initState();
     _iconCtrl = AnimationController(
       vsync: this,
-      duration: CrossLinkTheme.durationFast,
+      duration: CrossLinkTheme.fast,
     );
     _iconTurns = Tween(begin: 0.0, end: 0.5).animate(_iconCtrl);
   }
@@ -91,20 +91,20 @@ class _ToolCallCardState extends State<ToolCallCard>
     final toolIcon = widget.name.toolIcon;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: CrossLinkTheme.spaceMd),
+      padding: const EdgeInsets.only(bottom: CrossLinkTheme.sMd),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
         child: Container(
           decoration: BoxDecoration(
-            color: CrossLinkTheme.panel.withAlpha(220),
-            borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+            color: CrossLinkTheme.surface.withAlpha(220),
+            borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
             border: Border.all(
               color: widget.isError
-                  ? CrossLinkTheme.errorRed.withAlpha(120)
+                  ? CrossLinkTheme.error.withAlpha(120)
                   : cs.outlineVariant.withAlpha(50),
               width: 0.5,
             ),
-            boxShadow: CrossLinkTheme.panelShadow,
+            boxShadow: CrossLinkTheme.cardShadow,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,13 +118,13 @@ class _ToolCallCardState extends State<ToolCallCard>
                     Expanded(
                       child: InkWell(
                         onTap: _hasDetails ? _toggle : null,
-                        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+                        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
                         child: Padding(
-                          padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+                          padding: const EdgeInsets.all(CrossLinkTheme.sMd),
                           child: Row(
                             children: [
                               Icon(toolIcon, size: 18, color: toolColor),
-                              const SizedBox(width: CrossLinkTheme.spaceSm),
+                              const SizedBox(width: CrossLinkTheme.sSm),
                               Expanded(
                                 child: Text(
                                   widget.name,
@@ -146,13 +146,13 @@ class _ToolCallCardState extends State<ToolCallCard>
                                     color: cs.onSurface.withAlpha(80),
                                   ),
                                 ),
-                              const SizedBox(width: CrossLinkTheme.spaceSm),
+                              const SizedBox(width: CrossLinkTheme.sSm),
                               _StatusDot(
                                 isError: widget.isError,
                                 isDone: _isDone,
                               ),
                               if (_hasDetails) ...[
-                                const SizedBox(width: CrossLinkTheme.spaceXs),
+                                const SizedBox(width: CrossLinkTheme.sXs),
                                 AnimatedBuilder(
                                   animation: _iconTurns,
                                   builder: (_, child) => Transform.rotate(
@@ -175,16 +175,16 @@ class _ToolCallCardState extends State<ToolCallCard>
                 ),
               ),
               AnimatedSize(
-                duration: CrossLinkTheme.durationNormal,
-                curve: CrossLinkTheme.curveDefault,
+                duration: CrossLinkTheme.normal,
+                curve: CrossLinkTheme.curve,
                 alignment: Alignment.topCenter,
                 child: _expanded && _hasDetails
                     ? Padding(
                         padding: const EdgeInsets.fromLTRB(
-                          CrossLinkTheme.spaceMd,
+                          CrossLinkTheme.sMd,
                           0,
-                          CrossLinkTheme.spaceMd,
-                          CrossLinkTheme.spaceMd,
+                          CrossLinkTheme.sMd,
+                          CrossLinkTheme.sMd,
                         ),
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxHeight: 200),
@@ -195,10 +195,10 @@ class _ToolCallCardState extends State<ToolCallCard>
                             if (widget.input != null && widget.input!.isNotEmpty)
                               Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.all(CrossLinkTheme.spaceSm),
+                                padding: const EdgeInsets.all(CrossLinkTheme.sSm),
                                 decoration: BoxDecoration(
-                                  color: CrossLinkTheme.deepSpace.withAlpha(160),
-                                  borderRadius: BorderRadius.circular(CrossLinkTheme.radiusSm),
+                                  color: CrossLinkTheme.bg.withAlpha(160),
+                                  borderRadius: BorderRadius.circular(CrossLinkTheme.rSm),
                                   border: Border.all(
                                     color: cs.outlineVariant.withAlpha(40),
                                     width: 0.5,
@@ -216,7 +216,7 @@ class _ToolCallCardState extends State<ToolCallCard>
                               ),
                             if (widget.resultSummary != null &&
                                 widget.resultSummary!.isNotEmpty) ...[
-                              const SizedBox(height: CrossLinkTheme.spaceSm),
+                              const SizedBox(height: CrossLinkTheme.sSm),
                               Text(
                                 widget.resultSummary!,
                                 maxLines: 3,
@@ -250,10 +250,10 @@ class _StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isError
-        ? CrossLinkTheme.errorRed
+        ? CrossLinkTheme.error
         : isDone
-            ? CrossLinkTheme.successGreen
-            : CrossLinkTheme.alertAmber;
+            ? CrossLinkTheme.success
+            : CrossLinkTheme.warning;
 
     return SizedBox(
       width: 14,

@@ -45,7 +45,7 @@ class _ToolResultCardState extends State<ToolResultCard>
     super.initState();
     _iconCtrl = AnimationController(
       vsync: this,
-      duration: CrossLinkTheme.durationFast,
+      duration: CrossLinkTheme.fast,
     );
     _iconTurns = Tween(begin: 0.0, end: 0.5).animate(_iconCtrl);
   }
@@ -124,21 +124,21 @@ class _ToolResultCardState extends State<ToolResultCard>
     final label = widget.toolName != null
         ? '${widget.toolName} 结果 ($_sizeLabel)'
         : '结果 ($_sizeLabel)';
-    final color = widget.isError ? CrossLinkTheme.errorRed : CrossLinkTheme.successGreen;
+    final color = widget.isError ? CrossLinkTheme.error : CrossLinkTheme.success;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: CrossLinkTheme.spaceMd),
+      padding: const EdgeInsets.only(bottom: CrossLinkTheme.sMd),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
         child: Container(
           decoration: BoxDecoration(
-            color: CrossLinkTheme.panel.withAlpha(220),
-            borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+            color: CrossLinkTheme.surface.withAlpha(220),
+            borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
             border: Border.all(
               color: color.withAlpha(widget.isError ? 120 : 60),
               width: 0.5,
             ),
-            boxShadow: CrossLinkTheme.panelShadow,
+            boxShadow: CrossLinkTheme.cardShadow,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,9 +152,9 @@ class _ToolResultCardState extends State<ToolResultCard>
                     Expanded(
                       child: InkWell(
                         onTap: _toggle,
-                        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+                        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
                         child: Padding(
-                          padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+                          padding: const EdgeInsets.all(CrossLinkTheme.sMd),
                           child: Row(
                             children: [
                               Icon(
@@ -162,7 +162,7 @@ class _ToolResultCardState extends State<ToolResultCard>
                                 size: 18,
                                 color: color,
                               ),
-                              const SizedBox(width: CrossLinkTheme.spaceSm),
+                              const SizedBox(width: CrossLinkTheme.sSm),
                               Expanded(
                                 child: Text(
                                   label,
@@ -183,7 +183,7 @@ class _ToolResultCardState extends State<ToolResultCard>
                                     color: cs.onSurface.withAlpha(80),
                                   ),
                                 ),
-                              const SizedBox(width: CrossLinkTheme.spaceSm),
+                              const SizedBox(width: CrossLinkTheme.sSm),
                               AnimatedBuilder(
                                 animation: _iconTurns,
                                 builder: (_, child) => Transform.rotate(
@@ -205,8 +205,8 @@ class _ToolResultCardState extends State<ToolResultCard>
                 ),
               ),
               AnimatedSize(
-                duration: CrossLinkTheme.durationNormal,
-                curve: CrossLinkTheme.curveDefault,
+                duration: CrossLinkTheme.normal,
+                curve: CrossLinkTheme.curve,
                 alignment: Alignment.topCenter,
                 child: _expanded
                     ? GestureDetector(
@@ -214,15 +214,15 @@ class _ToolResultCardState extends State<ToolResultCard>
                         child: Container(
                           width: double.infinity,
                           margin: const EdgeInsets.fromLTRB(
-                            CrossLinkTheme.spaceMd,
+                            CrossLinkTheme.sMd,
                             0,
-                            CrossLinkTheme.spaceMd,
-                            CrossLinkTheme.spaceMd,
+                            CrossLinkTheme.sMd,
+                            CrossLinkTheme.sMd,
                           ),
-                          padding: const EdgeInsets.all(CrossLinkTheme.spaceSm),
+                          padding: const EdgeInsets.all(CrossLinkTheme.sSm),
                           decoration: BoxDecoration(
-                            color: CrossLinkTheme.deepSpace.withAlpha(160),
-                            borderRadius: BorderRadius.circular(CrossLinkTheme.radiusSm),
+                            color: CrossLinkTheme.bg.withAlpha(160),
+                            borderRadius: BorderRadius.circular(CrossLinkTheme.rSm),
                             border: Border.all(
                               color: cs.outlineVariant.withAlpha(40),
                               width: 0.5,
@@ -237,7 +237,7 @@ class _ToolResultCardState extends State<ToolResultCard>
                               fontFamily: 'monospace',
                               fontSize: 11,
                               color: widget.isError
-                                  ? CrossLinkTheme.errorRed.withAlpha(220)
+                                  ? CrossLinkTheme.error.withAlpha(220)
                                   : cs.onSurface.withAlpha(180),
                               height: 1.4,
                             ),

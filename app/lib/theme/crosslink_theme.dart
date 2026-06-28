@@ -1,237 +1,207 @@
 import 'package:flutter/material.dart';
 
-/// CrossLink 品牌设计 token —— 深空链路 (Deep Space Link)
+/// CrossLink 品牌设计 token —— 曜黑 (Obsidian)
 ///
-/// 调性：深邃、安全、互联。以深空黑为底，电光青/蓝为强调色，
-/// 模拟终端窗口与跨端链路的光轨质感。
+/// 简约但不简单。以深邃曜石黑为底，微妙层次区分空间。
+/// 单一强调色链路蓝，克制使用。圆角统一、间距呼吸。
 class CrossLinkTheme {
   CrossLinkTheme._();
 
-  // ── 品牌核心色 ─────────────────────────────────────────
-  static const Color deepSpace = Color(0xFF0A0B0F);
-  static const Color deepSpaceElevated = Color(0xFF12141C);
-  static const Color panel = Color(0xFF1A1D28);
-  static const Color panelHover = Color(0xFF222636);
-  static const Color linkCyan = Color(0xFF00E5FF);
-  static const Color linkBlue = Color(0xFF2979FF);
-  static const Color linkPurple = Color(0xFF7C4DFF);
-  static const Color alertAmber = Color(0xFFFFB300);
-  static const Color successGreen = Color(0xFF00E676);
-  static const Color errorRed = Color(0xFFFF5252);
+  // ── 背景层 ─────────────────────────────────────────────
+  /// 根背景 — 最深处
+  static const Color bg = Color(0xFF0D0E12);
+  /// 表层 — 卡片、面板
+  static const Color surface = Color(0xFF16171D);
+  /// 悬停 — 列表项按下
+  static const Color surfaceHover = Color(0xFF1E1F27);
+  /// 输入区背景
+  static const Color inputBg = Color(0xFF121318);
+
+  // ── 文字层 ─────────────────────────────────────────────
+  static const Color textPrimary = Color(0xFFEBECF0);
+  static const Color textSecondary = Color(0xFF9DA0B0);
+  static const Color textMuted = Color(0xFF5C6072);
+
+  // ── 强调色 ─────────────────────────────────────────────
+  /// 主强调 — 链路蓝
+  static const Color accent = Color(0xFF4C82FB);
+  /// 成功
+  static const Color success = Color(0xFF34C759);
+  /// 警告
+  static const Color warning = Color(0xFFFF9F0A);
+  /// 错误
+  static const Color error = Color(0xFFFF453A);
 
   // ── 工具语义色 ─────────────────────────────────────────
-  static const Color toolBash = Color(0xFFFFD54F);
-  static const Color toolRead = Color(0xFF82B1FF);
-  static const Color toolWrite = Color(0xFFFFB74D);
-  static const Color toolGrep = Color(0xFF69F0AE);
-  static const Color toolGlob = Color(0xFFB388FF);
-  static const Color toolWebSearch = Color(0xFF84FFFF);
-  static const Color toolWebFetch = Color(0xFF80CBC4);
+  static const Color toolBash = Color(0xFFF5C842);
+  static const Color toolRead = Color(0xFF6EA8FE);
+  static const Color toolWrite = Color(0xFFF5A623);
+  static const Color toolEdit = Color(0xFFBF7AF0);
+  static const Color toolGrep = Color(0xFF56D492);
+  static const Color toolGlob = Color(0xFFC084FC);
+  static const Color toolSearch = Color(0xFF22D3EE);
 
-  // ── 渐变 ───────────────────────────────────────────────
-  static const LinearGradient linkGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [linkCyan, linkBlue, linkPurple],
-    stops: [0.0, 0.55, 1.0],
-  );
-
-  static const LinearGradient surfaceGradient = LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [deepSpaceElevated, deepSpace],
-  );
-
-  static const RadialGradient glowRadial = RadialGradient(
-    center: Alignment.topCenter,
-    radius: 0.8,
-    colors: [Color(0x152979FF), Colors.transparent],
-  );
-
-  // ── 阴影 ───────────────────────────────────────────────
-  static List<BoxShadow> get panelShadow => [
-        BoxShadow(
-          color: const Color(0x40000000),
-          blurRadius: 16,
-          offset: const Offset(0, 6),
-        ),
-      ];
-
-  static List<BoxShadow> get linkGlow => const [
-        BoxShadow(
-          color: Color(0x6600E5FF),
-          blurRadius: 12,
-          spreadRadius: -2,
-        ),
-      ];
+  // ── 边框 ───────────────────────────────────────────────
+  static const Color border = Color(0x1AFFFFFF);
+  static const Color borderFocus = Color(0x4D4C82FB);
 
   // ── 圆角 ───────────────────────────────────────────────
-  static const double radiusXs = 6;
-  static const double radiusSm = 10;
-  static const double radiusMd = 14;
-  static const double radiusLg = 20;
-  static const double radiusXl = 28;
+  static const double rXs = 4;
+  static const double rSm = 8;
+  static const double rMd = 12;
+  static const double rLg = 16;
+  static const double rXl = 24;
 
   // ── 间距 ───────────────────────────────────────────────
-  static const double spaceXs = 4;
-  static const double spaceSm = 8;
-  static const double spaceMd = 12;
-  static const double spaceLg = 16;
-  static const double spaceXl = 24;
-  static const double spaceXxl = 32;
+  static const double sXs = 4;
+  static const double sSm = 8;
+  static const double sMd = 12;
+  static const double sLg = 16;
+  static const double sXl = 24;
+  static const double sXxl = 32;
 
   // ── 动画 ───────────────────────────────────────────────
-  static const Duration durationFast = Duration(milliseconds: 150);
-  static const Duration durationNormal = Duration(milliseconds: 250);
-  static const Duration durationSlow = Duration(milliseconds: 400);
-  static const Curve curveDefault = Curves.easeOutCubic;
+  static const Duration fast = Duration(milliseconds: 150);
+  static const Duration normal = Duration(milliseconds: 250);
+  static const Duration slow = Duration(milliseconds: 400);
+  static const Curve curve = Curves.easeOutCubic;
 
-  // ── ThemeData 工厂 ─────────────────────────────────────
+  // ── 阴影 ───────────────────────────────────────────────
+  static List<BoxShadow> get cardShadow => const [
+        BoxShadow(color: Color(0x18000000), blurRadius: 12, offset: Offset(0, 4)),
+      ];
+
+  static List<BoxShadow> get glowShadow => const [
+        BoxShadow(color: Color(0x334C82FB), blurRadius: 16, spreadRadius: -4),
+      ];
+
+  // ── ThemeData ──────────────────────────────────────────
   static ThemeData darkTheme(Color seed) {
     final cs = ColorScheme.fromSeed(
       seedColor: seed,
       brightness: Brightness.dark,
-      surface: deepSpace,
-      primary: linkBlue,
-      secondary: linkCyan,
-      error: errorRed,
+      surface: surface,
+      primary: accent,
+      secondary: accent.withAlpha(180),
+      error: error,
     );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: cs,
-      scaffoldBackgroundColor: deepSpace,
+      scaffoldBackgroundColor: bg,
       appBarTheme: AppBarTheme(
-        backgroundColor: deepSpace.withAlpha(200),
+        backgroundColor: bg.withAlpha(230),
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
+          fontSize: 17, fontWeight: FontWeight.w600, color: textPrimary, letterSpacing: -0.3,
         ),
       ),
       cardTheme: CardThemeData(
-        color: panel,
+        color: surface,
         elevation: 0,
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radiusMd),
-          side: const BorderSide(color: Color(0x22FFFFFF), width: 0.5),
+          borderRadius: BorderRadius.circular(rMd),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: panel,
+        fillColor: inputBg,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radiusLg),
+          borderRadius: BorderRadius.circular(rLg),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radiusLg),
-          borderSide: const BorderSide(color: Color(0x22FFFFFF), width: 0.5),
+          borderRadius: BorderRadius.circular(rLg),
+          borderSide: const BorderSide(color: border, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radiusLg),
-          borderSide: const BorderSide(color: linkCyan, width: 1.5),
+          borderRadius: BorderRadius.circular(rLg),
+          borderSide: const BorderSide(color: accent, width: 1.5),
         ),
-        hintStyle: const TextStyle(color: Color(0x80FFFFFF)),
+        hintStyle: const TextStyle(color: textMuted, fontSize: 14),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: panelHover,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusSm),
-          ),
+          backgroundColor: surfaceHover,
+          foregroundColor: textPrimary,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rSm)),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusSm),
-          ),
+          backgroundColor: accent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rSm)),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: deepSpaceElevated.withAlpha(240),
-        indicatorColor: linkBlue.withAlpha(60),
+        backgroundColor: bg.withAlpha(240),
+        indicatorColor: accent.withAlpha(40),
+        surfaceTintColor: Colors.transparent,
         labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: -0.2),
         ),
       ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(rLg)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rLg)),
+      ),
       textTheme: const TextTheme(
-        titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
-        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-        titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
-        bodyMedium: TextStyle(fontSize: 14, color: Color(0xE6FFFFFF)),
-        bodySmall: TextStyle(fontSize: 12, color: Color(0xB3FFFFFF)),
-        labelSmall: TextStyle(fontSize: 10, color: Color(0x80FFFFFF)),
+        titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: textPrimary, letterSpacing: -0.4),
+        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textPrimary, letterSpacing: -0.2),
+        titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary),
+        bodyMedium: TextStyle(fontSize: 14, color: textPrimary, height: 1.5),
+        bodySmall: TextStyle(fontSize: 12, color: textSecondary, height: 1.4),
+        labelSmall: TextStyle(fontSize: 10, color: textMuted),
       ),
-      dividerTheme: const DividerThemeData(
-        color: Color(0x18FFFFFF),
-        thickness: 1,
-      ),
+      dividerTheme: const DividerThemeData(color: border, thickness: 1),
     );
   }
 }
 
-/// 常用工具扩展
+/// 工具扩展
 extension ToolColor on String {
   Color get toolColor {
     switch (this) {
-      case 'Bash':
-        return CrossLinkTheme.toolBash;
-      case 'Read':
-        return CrossLinkTheme.toolRead;
-      case 'Write':
-      case 'Edit':
-        return CrossLinkTheme.toolWrite;
-      case 'Grep':
-        return CrossLinkTheme.toolGrep;
-      case 'Glob':
-        return CrossLinkTheme.toolGlob;
-      case 'WebSearch':
-        return CrossLinkTheme.toolWebSearch;
-      case 'WebFetch':
-        return CrossLinkTheme.toolWebFetch;
-      default:
-        return CrossLinkTheme.linkBlue;
+      case 'Bash': return CrossLinkTheme.toolBash;
+      case 'Read': return CrossLinkTheme.toolRead;
+      case 'Write': return CrossLinkTheme.toolWrite;
+      case 'Edit': return CrossLinkTheme.toolEdit;
+      case 'Grep': return CrossLinkTheme.toolGrep;
+      case 'Glob': return CrossLinkTheme.toolGlob;
+      case 'WebSearch': case 'WebFetch': return CrossLinkTheme.toolSearch;
+      default: return CrossLinkTheme.accent;
     }
   }
 
   IconData get toolIcon {
     switch (this) {
-      case 'Read':
-        return Icons.menu_book_rounded;
-      case 'Write':
-      case 'Edit':
-        return Icons.edit_note_rounded;
-      case 'Bash':
-        return Icons.terminal_rounded;
-      case 'Grep':
-        return Icons.search_rounded;
-      case 'Glob':
-        return Icons.folder_open_rounded;
-      case 'WebSearch':
-        return Icons.public_rounded;
-      case 'WebFetch':
-        return Icons.download_rounded;
-      case 'Task':
-        return Icons.assignment_rounded;
-      default:
-        return Icons.build_circle_rounded;
+      case 'Bash': return Icons.terminal_rounded;
+      case 'Read': return Icons.menu_book_rounded;
+      case 'Write': case 'Edit': return Icons.edit_note_rounded;
+      case 'Grep': return Icons.search_rounded;
+      case 'Glob': return Icons.folder_open_rounded;
+      case 'WebSearch': return Icons.public_rounded;
+      case 'WebFetch': return Icons.download_rounded;
+      default: return Icons.build_circle_rounded;
     }
   }
-}
-
-extension GlowX on Color {
-  BoxShadow get softGlow => BoxShadow(
-        color: withAlpha(80),
-        blurRadius: 12,
-        spreadRadius: -2,
-      );
 }

@@ -47,9 +47,9 @@ class _AgentSelectScreenState extends State<AgentSelectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CrossLinkTheme.deepSpace,
+      backgroundColor: CrossLinkTheme.bg,
       appBar: AppBar(
-        backgroundColor: CrossLinkTheme.deepSpace.withAlpha(220),
+        backgroundColor: CrossLinkTheme.bg.withAlpha(220),
         title: Text(widget.device.deviceName.isNotEmpty ? widget.device.deviceName : widget.device.agentId),
       ),
       body: _loading
@@ -67,7 +67,7 @@ class _AgentSelectScreenState extends State<AgentSelectScreen> {
                     final a = _agents[i];
                     final colors = _agentColor(a.type);
                     return Card(
-                      color: CrossLinkTheme.panel,
+                      color: CrossLinkTheme.surface,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       margin: const EdgeInsets.only(bottom: 12),
                       child: InkWell(
@@ -104,7 +104,7 @@ class _AgentSelectScreenState extends State<AgentSelectScreen> {
 
   (Color, Color) _agentColor(String type) {
     switch (type) {
-      case 'claude': return (CrossLinkTheme.linkCyan, Colors.cyanAccent);
+      case 'claude': return (CrossLinkTheme.accent, Colors.cyanAccent);
       case 'deepseek': return (Colors.blue, Colors.blueAccent);
       case 'ollama': return (Colors.green, Colors.greenAccent);
       default: return (Colors.grey, Colors.grey);

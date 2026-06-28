@@ -268,12 +268,12 @@ class DiscoverScreenState extends State<DiscoverScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.wifi_off_rounded, size: 64,
-                  color: CrossLinkTheme.panel),
+                  color: CrossLinkTheme.surface),
               const SizedBox(height: 16),
               Text(
                 _statusText,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: CrossLinkTheme.panel, fontSize: 14),
+                style: TextStyle(color: CrossLinkTheme.surface, fontSize: 14),
               ),
             ],
           ),
@@ -292,16 +292,16 @@ class DiscoverScreenState extends State<DiscoverScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.explore_outlined, size: 64,
-                      color: CrossLinkTheme.panel),
+                      color: CrossLinkTheme.surface),
                   const SizedBox(height: 16),
                   Text(
                     _statusText,
-                    style: TextStyle(color: CrossLinkTheme.panel, fontSize: 14),
+                    style: TextStyle(color: CrossLinkTheme.surface, fontSize: 14),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '下拉刷新重试',
-                    style: TextStyle(color: CrossLinkTheme.panel.withAlpha(150), fontSize: 12),
+                    style: TextStyle(color: CrossLinkTheme.surface.withAlpha(150), fontSize: 12),
                   ),
                 ],
               ),
@@ -326,7 +326,7 @@ class DiscoverScreenState extends State<DiscoverScreen> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      color: CrossLinkTheme.deepSpaceElevated,
+      color: CrossLinkTheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: agent.isOwn
@@ -373,7 +373,7 @@ class DiscoverScreenState extends State<DiscoverScreen> {
                 const SizedBox(width: 12),
                 Text(
                   agent.onlineDuration,
-                  style: TextStyle(fontSize: 12, color: CrossLinkTheme.panel),
+                  style: TextStyle(fontSize: 12, color: CrossLinkTheme.surface),
                 ),
               ],
             ),
@@ -466,14 +466,14 @@ class DiscoverScreenState extends State<DiscoverScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: CrossLinkTheme.linkBlue.withAlpha(25),
+        color: CrossLinkTheme.accent.withAlpha(25),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         cap,
         style: TextStyle(
           fontSize: 11,
-          color: CrossLinkTheme.linkBlue,
+          color: CrossLinkTheme.accent,
           fontFamily: 'monospace',
         ),
       ),

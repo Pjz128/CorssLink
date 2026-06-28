@@ -33,7 +33,7 @@ class HomeScreenState extends State<HomeScreen> {
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: CrossLinkTheme.deepSpaceElevated,
+        backgroundColor: CrossLinkTheme.surface,
         title: const Text('手动配对'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
@@ -134,7 +134,7 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CrossLinkTheme.deepSpace,
+      backgroundColor: CrossLinkTheme.bg,
       appBar: AppBar(
         toolbarHeight: 0,
         backgroundColor: Colors.transparent,
@@ -153,7 +153,7 @@ class HomeScreenState extends State<HomeScreen> {
 
   Widget _buildLoading() {
     return ListView(
-      padding: const EdgeInsets.all(CrossLinkTheme.spaceLg),
+      padding: const EdgeInsets.all(CrossLinkTheme.sLg),
       children: const [
         SizedBox(height: 40),
         ShimmerCard(),
@@ -166,7 +166,7 @@ class HomeScreenState extends State<HomeScreen> {
   Widget _buildEmpty() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(CrossLinkTheme.spaceXxl),
+        padding: const EdgeInsets.all(CrossLinkTheme.sXxl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -175,18 +175,18 @@ class HomeScreenState extends State<HomeScreen> {
               width: 200,
               height: 170,
             ),
-            const SizedBox(height: CrossLinkTheme.spaceXl),
+            const SizedBox(height: CrossLinkTheme.sXl),
             Text(
               '还没有配对的设备',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: CrossLinkTheme.spaceSm),
+            const SizedBox(height: CrossLinkTheme.sSm),
             Text(
               '扫描电脑端 CrossLink Agent 的二维码\n即可远程访问家中的 AI 模型',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: CrossLinkTheme.spaceXl),
+            const SizedBox(height: CrossLinkTheme.sXl),
             // Web 端手动配对（无摄像头）
             if (kIsWeb)
               FilledButton.icon(
@@ -195,7 +195,7 @@ class HomeScreenState extends State<HomeScreen> {
                 label: const Text('手动配对'),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  backgroundColor: CrossLinkTheme.linkPurple,
+                  backgroundColor: CrossLinkTheme.accent,
                 ),
               ),
             const SizedBox(height: 12),
@@ -212,7 +212,7 @@ class HomeScreenState extends State<HomeScreen> {
               label: const Text(kIsWeb ? '扫码配对 (移动端)' : '扫码配对'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                backgroundColor: CrossLinkTheme.linkBlue,
+                backgroundColor: CrossLinkTheme.accent,
               ),
             ),
           ],
@@ -227,14 +227,14 @@ class HomeScreenState extends State<HomeScreen> {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.only(top: CrossLinkTheme.spaceLg, bottom: CrossLinkTheme.spaceXs),
+            padding: const EdgeInsets.only(top: CrossLinkTheme.sLg, bottom: CrossLinkTheme.sXs),
             child: Column(
               children: [
                 const AnimatedMessenger(
                   state: MessengerState.connected,
                   size: 72,
                 ),
-                const SizedBox(height: CrossLinkTheme.spaceSm),
+                const SizedBox(height: CrossLinkTheme.sSm),
                 Text(
                   '${_devices.length} 个设备已配对',
                   style: Theme.of(context).textTheme.bodySmall,
@@ -244,7 +244,7 @@ class HomeScreenState extends State<HomeScreen> {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: CrossLinkTheme.spaceMd),
+          padding: const EdgeInsets.symmetric(horizontal: CrossLinkTheme.sMd),
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate(
               (context, index) {
@@ -281,10 +281,10 @@ class HomeScreenState extends State<HomeScreen> {
                     background: Container(
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.only(right: 20),
-                      margin: const EdgeInsets.symmetric(vertical: CrossLinkTheme.spaceXs),
+                      margin: const EdgeInsets.symmetric(vertical: CrossLinkTheme.sXs),
                       decoration: BoxDecoration(
-                        color: CrossLinkTheme.errorRed.withAlpha(160),
-                        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+                        color: CrossLinkTheme.error.withAlpha(160),
+                        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
                       ),
                       child: const Icon(Icons.delete, color: Colors.white),
                     ),
@@ -313,7 +313,7 @@ class HomeScreenState extends State<HomeScreen> {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+            padding: const EdgeInsets.all(CrossLinkTheme.sMd),
             child: OutlinedButton.icon(
               onPressed: () async {
                 HapticFeedback.mediumImpact();
@@ -327,8 +327,8 @@ class HomeScreenState extends State<HomeScreen> {
               label: const Text('添加设备'),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
-                side: const BorderSide(color: CrossLinkTheme.linkBlue),
-                foregroundColor: CrossLinkTheme.linkCyan,
+                side: const BorderSide(color: CrossLinkTheme.accent),
+                foregroundColor: CrossLinkTheme.accent,
               ),
             ),
           ),
@@ -345,11 +345,11 @@ class HomeScreenState extends State<HomeScreen> {
           position: Tween<Offset>(
             begin: const Offset(0.3, 0),
             end: Offset.zero,
-          ).animate(CurvedAnimation(parent: animation, curve: CrossLinkTheme.curveDefault)),
+          ).animate(CurvedAnimation(parent: animation, curve: CrossLinkTheme.curve)),
           child: FadeTransition(opacity: animation, child: child),
         );
       },
-      transitionDuration: CrossLinkTheme.durationNormal,
+      transitionDuration: CrossLinkTheme.normal,
     );
   }
 }
@@ -375,10 +375,10 @@ class _StaggeredItemState extends State<_StaggeredItem>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: CrossLinkTheme.durationSlow,
+      duration: CrossLinkTheme.slow,
     );
     _slide = Tween(begin: 30.0, end: 0.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: CrossLinkTheme.curveDefault),
+      CurvedAnimation(parent: _ctrl, curve: CrossLinkTheme.curve),
     );
     _fade = Tween(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
@@ -428,16 +428,16 @@ class _DeviceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: CrossLinkTheme.spaceXs),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd)),
+      margin: const EdgeInsets.symmetric(vertical: CrossLinkTheme.sXs),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CrossLinkTheme.rMd)),
       elevation: 0,
-      color: CrossLinkTheme.panel.withAlpha(220),
+      color: CrossLinkTheme.surface.withAlpha(220),
       child: InkWell(
-        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+        borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(CrossLinkTheme.radiusMd),
+            borderRadius: BorderRadius.circular(CrossLinkTheme.rMd),
             border: Border.all(color: cs.outlineVariant.withAlpha(40), width: 0.5),
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
@@ -446,7 +446,7 @@ class _DeviceCard extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(CrossLinkTheme.spaceMd),
+            padding: const EdgeInsets.all(CrossLinkTheme.sMd),
             child: Row(
               children: [
                 Container(
@@ -455,19 +455,19 @@ class _DeviceCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: const RadialGradient(colors: [
-                      CrossLinkTheme.linkBlue,
-                      CrossLinkTheme.linkPurple,
+                      CrossLinkTheme.accent,
+                      CrossLinkTheme.accent,
                     ]),
                     boxShadow: [
                       BoxShadow(
-                        color: CrossLinkTheme.linkBlue.withAlpha(60),
+                        color: CrossLinkTheme.accent.withAlpha(60),
                         blurRadius: 12,
                       ),
                     ],
                   ),
                   child: const Icon(Icons.computer, color: Colors.white, size: 22),
                 ),
-                const SizedBox(width: CrossLinkTheme.spaceMd),
+                const SizedBox(width: CrossLinkTheme.sMd),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,7 +478,7 @@ class _DeviceCard extends StatelessWidget {
                             width: 8,
                             height: 8,
                             decoration: const BoxDecoration(
-                              color: CrossLinkTheme.successGreen,
+                              color: CrossLinkTheme.success,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -519,15 +519,15 @@ class _DeviceCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: CrossLinkTheme.linkBlue.withAlpha(30),
-                        borderRadius: BorderRadius.circular(CrossLinkTheme.radiusXl),
+                        color: CrossLinkTheme.accent.withAlpha(30),
+                        borderRadius: BorderRadius.circular(CrossLinkTheme.rXl),
                       ),
                       child: Text(
                         '$sessionCount 会话',
                         style: Theme.of(context)
                             .textTheme
                             .labelSmall
-                            ?.copyWith(color: CrossLinkTheme.linkCyan, fontSize: 10),
+                            ?.copyWith(color: CrossLinkTheme.accent, fontSize: 10),
                       ),
                     ),
                   ],
